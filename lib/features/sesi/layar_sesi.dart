@@ -7,6 +7,7 @@ import '../../core/theme/rukun_typography.dart';
 import '../../domain/aturan/moda_gerak.dart';
 import '../../domain/model/koordinat.dart';
 import '../../shared/widgets/frosted_card.dart';
+import '../../shared/widgets/kabut_singkap.dart';
 import '../../state/kendali_sesi.dart';
 import '../../state/penyedia.dart';
 import '../peta/peta_rukun.dart';
@@ -19,16 +20,37 @@ import '../peta/peta_rukun.dart';
 /// **Pace tidak pernah ditampilkan.** Ini keputusan produk, bukan kelalaian.
 /// Angka besar yang ditampilkan adalah durasi, karena itulah yang menentukan
 /// kontribusi ke tim.
-class LayarSesi extends ConsumerWidget {
+class LayarSesi extends ConsumerStatefulWidget {
   const LayarSesi({super.key, this.onSelesaiSesi});
 
   final ValueChanged<HasilSesi>? onSelesaiSesi;
 
+  @override
+  ConsumerState<LayarSesi> createState() => _LayarSesiState();
+}
+
+class _LayarSesiState extends ConsumerState<LayarSesi> {
   static const _acuan = Koordinat(-6.2264, 106.8556);
 
+  /// Memicu Penyingkapan Kabut. Dinaikkan setiap ada petak baru terbuka.
+  bool _menyingkap = false;
+  int _petakTerakhir = 0;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final status = ref.watch(kendaliSesiProvider);
+
+    // Petak baru terbuka → jalankan animasi tanda tangan.
+    if (status.petakSesi.length != _petakTerakhir) {
+      _petakTerakhir = status.petakSesi.length;
+      if (_petakTerakhir > 0 && !_menyingkap) {
+        _menyingkap = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {});
+        });
+      }
+    }
+
     final posisi = ref.watch(posisiProvider).valueOrNull ?? _acuan;
 
     final d = status.durasi;
@@ -47,10 +69,19 @@ class LayarSesi extends ConsumerWidget {
           // Peta menyusut jadi kartu 40% — kabut terbuka secara langsung.
           Expanded(
             flex: 4,
-            child: PetaRukun(
-              pusat: posisi,
-              jejak: status.petakSesi,
-              zoom: 17,
+            child: KabutSingkap(
+              tersingkap: _menyingkap,
+              label: '+${status.petakSesi.length} petak',
+              onSelesai: () {
+                // Siap dipicu lagi untuk petak berikutnya.
+                if (mounted) setState(() => _menyingkap = false);
+                ref.read(kendaliSesiProvider.notifier).bersihkanPetakBaru();
+              },
+              child: PetaRukun(
+                pusat: posisi,
+                jejak: status.petakSesi,
+                zoom: 17,
+              ),
             ),
           ),
           Expanded(
@@ -113,7 +144,7 @@ class LayarSesi extends ConsumerWidget {
                         final hasil = await ref
                             .read(kendaliSesiProvider.notifier)
                             .selesai();
-                        if (hasil != null) onSelesaiSesi?.call(hasil);
+                        if (hasil != null) widget.onSelesaiSesi?.call(hasil);
                       },
                     ),
                   ],

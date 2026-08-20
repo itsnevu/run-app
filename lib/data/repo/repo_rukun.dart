@@ -1,6 +1,7 @@
 import '../../domain/grid/grid_petak.dart';
 import '../../domain/model/kelurahan.dart';
 import '../../domain/model/pelintas.dart';
+import '../../domain/aturan/zona_privat.dart';
 import '../../domain/model/sesi.dart';
 
 /// Kontrak penyimpanan Rukun.
@@ -44,6 +45,14 @@ abstract interface class RepoRukun {
   Future<void> simpanSesi(Sesi sesi);
 
   Future<List<Sesi>> muatSesi();
+
+  /// Zona privat pengguna — biasanya rumah.
+  ///
+  /// Petak di dalamnya tidak pernah jadi klaim dan tidak pernah meninggalkan
+  /// perangkat.
+  Future<List<ZonaPrivat>> muatZonaPrivat();
+
+  Future<void> simpanZonaPrivat(List<ZonaPrivat> zona);
 
   /// Berapa hari dalam 7 hari terakhir pengguna bergerak.
   ///

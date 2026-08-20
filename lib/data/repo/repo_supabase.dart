@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/rukun_colors.dart';
+import '../../domain/aturan/zona_privat.dart';
 import '../../domain/grid/grid_petak.dart';
 import '../../domain/model/kelurahan.dart';
 import '../../domain/model/koordinat.dart';
@@ -20,11 +21,14 @@ import 'repo_rukun.dart';
 /// - Petak di dalam zona privat sudah disaring di perangkat sebelum sampai
 ///   ke sini (lihat `KendaliSesi.selesai`).
 class RepoSupabase implements RepoRukun {
-  RepoSupabase(this._klien, {DateTime Function()? jam})
+  RepoSupabase(this._klien, {DateTime Function()? jam, this.zonaLokal})
       : _jam = jam ?? DateTime.now;
 
   final SupabaseClient _klien;
   final DateTime Function() _jam;
+
+  /// Penyimpanan perangkat untuk zona privat — tidak pernah ke server.
+  final RepoRukun? zonaLokal;
 
   String? get _uid => _klien.auth.currentUser?.id;
 
@@ -227,6 +231,19 @@ class RepoSupabase implements RepoRukun {
         ),
     ];
   }
+
+  // ── Zona privat ─────────────────────────────────────────────────
+  //
+  // Sengaja TIDAK disimpan di server. Mengunggah daftar zona privat berarti
+  // memberi tahu server persis di mana rumah seseorang — justru kebalikan
+  // dari tujuan fitur ini. Zona privat hidup dan mati di perangkat.
+  @override
+  Future<List<ZonaPrivat>> muatZonaPrivat() async =>
+      zonaLokal?.muatZonaPrivat() ?? Future.value(const []);
+
+  @override
+  Future<void> simpanZonaPrivat(List<ZonaPrivat> zona) async =>
+      zonaLokal?.simpanZonaPrivat(zona);
 
   @override
   Future<int> hariAktifMingguIni() async {

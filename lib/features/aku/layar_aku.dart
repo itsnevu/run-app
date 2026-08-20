@@ -5,6 +5,8 @@ import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
 import '../../core/theme/rukun_typography.dart';
 import '../../shared/widgets/frosted_card.dart';
+import '../../shared/widgets/gradient_button.dart';
+import '../../domain/aturan/zona_privat.dart';
 import '../../state/penyedia.dart';
 
 /// Layar Aku. DESIGN.md §7.6
@@ -166,9 +168,95 @@ class LayarAku extends ConsumerWidget {
                 isi: 'Petak dekat rumah nggak pernah jadi klaim dan nggak '
                     'pernah keluar dari HP kamu.',
               ),
+              const SizedBox(height: Jarak.lg),
+              _ZonaPrivat(zona: ref.watch(zonaPrivatProvider)),
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Daftar zona privat yang aktif.
+///
+/// Dibuat otomatis setelah sesi pertama — pengguna tidak perlu menemukannya
+/// dulu. Yang ditampilkan di sini adalah bukti bahwa ia menyala, plus jalan
+/// keluar bila pengguna memang ingin mematikannya.
+class _ZonaPrivat extends ConsumerWidget {
+  const _ZonaPrivat({required this.zona});
+
+  final AsyncValue<List<ZonaPrivat>> zona;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final daftar = zona.valueOrNull ?? const <ZonaPrivat>[];
+
+    if (daftar.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(Jarak.lg),
+        decoration: BoxDecoration(
+          color: context.modeGelap
+              ? Colors.white.withValues(alpha: 0.04)
+              : Colors.black.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(Sudut.sm),
+        ),
+        child: Text(
+          'Belum ada zona privat. Satu akan dibuat otomatis di titik awal '
+          'sesi pertamamu.',
+          style: RukunText.footnote.copyWith(color: context.teksSekunder),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        for (final z in daftar)
+          Container(
+            margin: const EdgeInsets.only(bottom: Jarak.sm),
+            padding: const EdgeInsets.all(Jarak.lg),
+            decoration: BoxDecoration(
+              color: context.modeGelap
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(Sudut.sm),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.shield_outlined,
+                    size: 20, color: context.gradients.tumbuh.colors.first),
+                const SizedBox(width: Jarak.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(z.label ?? 'Zona privat',
+                          style: RukunText.subhead.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: context.warna.onSurface,
+                          )),
+                      Text(
+                        'Aktif · radius ${z.radiusMeter.toStringAsFixed(0)} m',
+                        style: RukunText.caption
+                            .copyWith(color: context.teksSekunder),
+                      ),
+                    ],
+                  ),
+                ),
+                TombolRukun(
+                  label: 'Hapus',
+                  varian: VarianTombol.hantu,
+                  penuh: false,
+                  padat: true,
+                  onTap: () async {
+                    final sisa = daftar.where((x) => x != z).toList();
+                    await ref.read(repoProvider).simpanZonaPrivat(sisa);
+                    ref.invalidate(zonaPrivatProvider);
+                  },
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

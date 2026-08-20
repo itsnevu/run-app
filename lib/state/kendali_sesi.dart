@@ -87,6 +87,9 @@ class KendaliSesi extends Notifier<StatusSesi> {
   Timer? _detak;
 
   /// Zona privat pengguna. Petak di dalamnya tidak pernah jadi klaim.
+  ///
+  /// Dimuat dari penyimpanan setiap sesi dimulai, dan dibuat otomatis setelah
+  /// sesi pertama — lihat [_pastikanZonaRumah].
   List<ZonaPrivat> zonaPrivat = const [];
 
   @override
@@ -109,6 +112,8 @@ class KendaliSesi extends Notifier<StatusSesi> {
       state = state.salin(izinDitolak: true);
       return false;
     }
+
+    zonaPrivat = await ref.read(repoProvider).muatZonaPrivat();
 
     final mulai = waktu();
     state = StatusSesi(
@@ -165,6 +170,11 @@ class KendaliSesi extends Notifier<StatusSesi> {
     final repo = ref.read(repoProvider);
     final grid = ref.read(gridProvider);
 
+    // Perlindungan rumah dibuat sebelum apa pun dikirim — privasi harus
+    // menyala sejak sesi pertama, bukan menunggu pengguna menemukannya
+    // di pengaturan.
+    await _pastikanZonaRumah(repo, akhir);
+
     // Jejak pribadi menyimpan SEMUA petak — ini milik pengguna sepenuhnya.
     final petak = akhir.petakDilewati(grid);
     await repo.tambahJejak(petak);
@@ -187,6 +197,24 @@ class KendaliSesi extends Notifier<StatusSesi> {
       petakDibuka: petak.length,
       baruTerklaim: terklaim,
     );
+  }
+
+  /// Membuat zona privat rumah otomatis bila belum ada.
+  ///
+  /// Titik awal sesi pertama hampir selalu rumah. DESIGN.md §9 menyebut
+  /// radius buta ini **wajib ada di hari pertama, bukan nanti** — jadi ia
+  /// menyala sendiri, bukan menunggu pengguna menemukannya di pengaturan.
+  /// Privasi semacam ini harus opt-out, bukan opt-in.
+  ///
+  /// Pengguna bisa melihat, memindahkan, atau menghapusnya di layar Aku.
+  Future<void> _pastikanZonaRumah(RepoRukun repo, Sesi sesi) async {
+    if (zonaPrivat.isNotEmpty) return;
+    if (sesi.titik.isEmpty) return;
+
+    zonaPrivat = [
+      ZonaPrivat(pusat: sesi.titik.first.koordinat, label: 'Rumah'),
+    ];
+    await repo.simpanZonaPrivat(zonaPrivat);
   }
 
   /// Petak yang baru saja lengkap karena pengguna menjadi orang ketiga.

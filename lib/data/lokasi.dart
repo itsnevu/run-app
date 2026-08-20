@@ -67,12 +67,23 @@ class LokasiPalsu implements LayananLokasi {
     this.kecepatanMeterPerDetik = 1.4, // jalan santai
     this.jedaSampel = const Duration(seconds: 1),
     this.izinDiberikan = true,
+    this.langkahMeter,
   });
 
   final Koordinat awal;
   final double kecepatanMeterPerDetik;
   final Duration jedaSampel;
   final bool izinDiberikan;
+
+  /// Jarak per sampel, meter.
+  ///
+  /// Biasanya diturunkan dari kecepatan × jeda. Pengujian bisa
+  /// mengaturnya langsung untuk **memampatkan waktu**: melintasi 150 m
+  /// radius privasi dengan kecepatan jalan asli butuh dua menit waktu
+  /// nyata, terlalu lama untuk sebuah uji. Pasangkan dengan jam sintetis
+  /// pada `KendaliSesi.mulai(jam: ...)` supaya kecepatan yang terhitung
+  /// tetap masuk akal.
+  final double? langkahMeter;
 
   Koordinat? _terakhir;
 
@@ -86,7 +97,7 @@ class LokasiPalsu implements LayananLokasi {
   Stream<Koordinat> aliranPosisi() async* {
     var posisi = _terakhir ?? awal;
     final meterPerDerajat = 111320 * math.cos(posisi.lat * math.pi / 180);
-    final langkah =
+    final langkah = langkahMeter ??
         kecepatanMeterPerDetik * jedaSampel.inMilliseconds / 1000;
 
     while (true) {

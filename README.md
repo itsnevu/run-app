@@ -86,7 +86,9 @@ Aplikasi bisa dijalankan dari onboarding sampai merekam sesi dan membuka petak.
 | Peta + tiga lapis (Jejak, Wilayah, Kabut) | ✅ |
 | Perekaman sesi + GPS | ✅ |
 | Layar Tim, Misi, Aku + bilah tab | ✅ |
-| Animasi Penyingkapan Kabut | ✅ |
+| Animasi Penyingkapan Kabut | ✅ terpasang di layar sesi |
+| Layar Ringkasan sesi | ✅ |
+| Zona privat rumah — **otomatis menyala** | ✅ |
 | Penyimpanan lokal | ✅ |
 | Skema backend + RLS + `RepoSupabase` | ✅ |
 | Contract test lintas implementasi | ✅ |
@@ -107,6 +109,10 @@ Penyelesaian sebenarnya butuh irama langkah dari akselerometer.
 **Pelacakan latar belakang.** Izin sudah dikonfigurasi di iOS dan Android,
 tapi sesi belum benar-benar berjalan saat aplikasi ditutup. Butuh
 `flutter_background_geolocation` atau foreground service.
+
+**Ikon & splash** masih bawaan Flutter.
+
+**Data Tim & Misi** masih contoh, belum tersambung ke sumber nyata.
 
 ### Backend
 
@@ -195,6 +201,7 @@ untuk mensimulasikan orang berikutnya melewati petak.
 | Flutter 3.47.1 · Dart 3.13.1 | ✅ terpasang di `~/development/flutter` |
 | Web (preview) | ✅ build & jalan |
 | Android SDK 36 + JDK 17 | ✅ terpasang, `flutter doctor` hijau |
+| APK debug | ✅ terbukti build (161 MB) |
 | iOS | ⚠️ butuh Xcode penuh dari App Store |
 
 ```bash

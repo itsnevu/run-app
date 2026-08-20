@@ -8,6 +8,7 @@ import '../data/repo/repo_lokal.dart';
 import '../data/repo/repo_supabase.dart';
 import '../data/repo/repo_rukun.dart';
 import '../domain/aturan/aturan_klaim.dart';
+import '../domain/aturan/zona_privat.dart';
 import '../domain/grid/grid_heks.dart';
 import '../domain/grid/grid_petak.dart';
 import '../domain/model/kelurahan.dart';
@@ -63,6 +64,11 @@ final jejakProvider = FutureProvider<Set<IdPetak>>(
 /// satu-satunya angka publik di Rukun.
 final hariAktifProvider = FutureProvider<int>(
   (ref) => ref.watch(repoProvider).hariAktifMingguIni(),
+);
+
+/// Zona privat pengguna — tidak pernah dikirim ke server.
+final zonaPrivatProvider = FutureProvider<List<ZonaPrivat>>(
+  (ref) => ref.watch(repoProvider).muatZonaPrivat(),
 );
 
 /// Posisi terakhir yang diketahui.

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/rukun_colors.dart';
+import '../../domain/aturan/zona_privat.dart';
 import '../../domain/grid/grid_petak.dart';
 import '../../domain/model/kelurahan.dart';
 import '../../domain/model/koordinat.dart';
@@ -28,6 +29,7 @@ class RepoLokal implements RepoRukun {
   static const _kJejak = 'jejak';
   static const _kLintasan = 'lintasan';
   static const _kSesi = 'sesi';
+  static const _kZona = 'zona_privat';
 
   /// Kelurahan contoh untuk MVP. Produksi mengambil dari batas wilayah asli.
   static const kelurahanContoh = <Kelurahan>[
@@ -262,6 +264,39 @@ class RepoLokal implements RepoRukun {
           );
         }(),
     ];
+  }
+
+  // ── Zona privat ─────────────────────────────────────────────────
+  @override
+  Future<List<ZonaPrivat>> muatZonaPrivat() async {
+    final daftar = _pref.getStringList(_kZona) ?? const [];
+    return [
+      for (final mentah in daftar)
+        () {
+          final j = jsonDecode(mentah) as Map<String, dynamic>;
+          return ZonaPrivat(
+            pusat: Koordinat(
+              (j['lat'] as num).toDouble(),
+              (j['lng'] as num).toDouble(),
+            ),
+            radiusMeter: (j['radius'] as num).toDouble(),
+            label: j['label'] as String?,
+          );
+        }(),
+    ];
+  }
+
+  @override
+  Future<void> simpanZonaPrivat(List<ZonaPrivat> zona) async {
+    await _pref.setStringList(_kZona, [
+      for (final z in zona)
+        jsonEncode({
+          'lat': z.pusat.lat,
+          'lng': z.pusat.lng,
+          'radius': z.radiusMeter,
+          'label': z.label,
+        }),
+    ]);
   }
 
   @override

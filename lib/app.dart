@@ -6,6 +6,7 @@ import 'features/aku/layar_aku.dart';
 import 'features/misi/layar_misi.dart';
 import 'features/onboarding/layar_onboarding.dart';
 import 'features/peta/layar_peta.dart';
+import 'features/sesi/layar_ringkasan.dart';
 import 'features/sesi/layar_sesi.dart';
 import 'features/tim/layar_tim.dart';
 import 'shared/widgets/bilah_tab.dart';
@@ -114,15 +115,18 @@ class _CangkangRukunState extends ConsumerState<CangkangRukun> {
       }
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          hasil.petakDibuka == 0
-              ? 'Sesi tersimpan.'
-              : 'Kamu buka ${hasil.petakDibuka} petak. Jejakmu nambah.',
+    if (hasil.petakDibuka == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sesi tersimpan.'),
+          behavior: SnackBarBehavior.floating,
         ),
-        behavior: SnackBarBehavior.floating,
-      ),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => LayarRingkasan(hasil: hasil)),
     );
   }
 

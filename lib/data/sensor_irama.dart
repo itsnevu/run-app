@@ -41,22 +41,30 @@ class SensorIramaPerangkat implements SensorIrama {
     if (_langganan != null) return;
     _sampel.clear();
 
-    try {
-      _langganan = accelerometerEventStream(
-        samplingPeriod: const Duration(milliseconds: 20), // 50 Hz
-      ).listen(
-        (e) {
-          _tersedia = true;
-          _sampel.add(SampelGerak(e.x, e.y, e.z, DateTime.now()));
-          _pangkas();
-        },
-        onError: (_) => _tersedia = false,
-        cancelOnError: false,
-      );
-    } catch (_) {
-      // Perangkat tanpa akselerometer — biarkan adaLangkah tetap null.
-      _tersedia = false;
-    }
+    // Akselerometer adalah penyempurnaan, bukan syarat. Perangkat tanpa
+    // sensor, izin yang ditolak, atau plugin yang gagal TIDAK BOLEH
+    // menggagalkan sesi — pengguna sedang berjalan kaki dan tidak peduli
+    // soal sensor.
+    //
+    // runZonedGuarded dipakai karena sensors_plus memanggil method channel
+    // tanpa menunggu hasilnya; kegagalannya muncul sebagai penolakan future
+    // yang tidak tertangkap dan tidak bisa diambil dengan try/catch biasa.
+    runZonedGuarded(
+      () {
+        _langganan = accelerometerEventStream(
+          samplingPeriod: const Duration(milliseconds: 20), // 50 Hz
+        ).listen(
+          (e) {
+            _tersedia = true;
+            _sampel.add(SampelGerak(e.x, e.y, e.z, DateTime.now()));
+            _pangkas();
+          },
+          onError: (Object _) => _tersedia = false,
+          cancelOnError: false,
+        );
+      },
+      (_, _) => _tersedia = false,
+    );
   }
 
   void _pangkas() {

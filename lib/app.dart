@@ -12,6 +12,7 @@ import 'features/tim/layar_tim.dart';
 import 'shared/widgets/bilah_tab.dart';
 import 'shared/widgets/perayaan_klaim.dart';
 import 'state/kendali_sesi.dart';
+import 'data/notifikasi.dart';
 import 'state/penyedia.dart';
 
 class AplikasiRukun extends StatelessWidget {
@@ -135,6 +136,36 @@ class _CangkangRukunState extends ConsumerState<CangkangRukun> {
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => LayarRingkasan(hasil: hasil)),
+    );
+
+    await _jadwalkanPengingat();
+  }
+
+  /// Menjadwalkan satu pengingat untuk besok.
+  ///
+  /// Izin diminta **setelah sesi pertama selesai**, bukan saat aplikasi
+  /// pertama dibuka: pada titik ini pengguna sudah tahu apa gunanya, jadi
+  /// permintaannya masuk akal dan lebih mungkin diterima. Meminta di layar
+  /// pembuka adalah cara tercepat mendapat penolakan permanen.
+  Future<void> _jadwalkanPengingat() async {
+    final notif = ref.read(notifikasiProvider);
+    if (!await notif.mintaIzin()) return;
+
+    final hangus = ref.read(petakHangusProvider).valueOrNull ?? const {};
+    final kelurahan = ref.read(kelurahanSayaProvider).valueOrNull;
+
+    final pesan = PesanHarian.susun(
+      petakHangus: hangus.length,
+      namaKelurahan: kelurahan?.nama ?? 'kelurahanmu',
+    );
+
+    // Jam 16.30 — sore, sebelum gelap, saat jalan kaki paling masuk akal
+    // di kota Indonesia.
+    await notif.jadwalkanHarian(
+      jam: 16,
+      menit: 30,
+      judul: pesan.judul,
+      isi: pesan.isi,
     );
   }
 

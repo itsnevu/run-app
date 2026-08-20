@@ -3,7 +3,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/konfigurasi.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
 import '../data/lokasi.dart';
+import '../data/notifikasi.dart';
+import '../data/sensor_irama.dart';
 import '../data/repo/repo_lokal.dart';
 import '../data/repo/repo_rukun.dart';
 import '../data/repo/repo_supabase.dart';
@@ -75,6 +79,15 @@ final pembukaSelesaiProvider =
     NotifierProvider<PembukaSelesai, bool>(PembukaSelesai.new);
 
 final lokasiProvider = Provider<LayananLokasi>((_) => const LokasiPerangkat());
+
+/// Notifikasi harian.
+final notifikasiProvider = Provider<LayananNotifikasi>(
+  (_) => NotifikasiPerangkat(FlutterLocalNotificationsPlugin()),
+);
+
+/// Sensor irama langkah — memisahkan bersepeda dari lari.
+final sensorIramaProvider =
+    Provider<SensorIrama>((_) => SensorIramaPerangkat());
 
 /// Profil pengguna. Null berarti belum ada sama sekali.
 final profilProvider = FutureProvider<Profil?>(

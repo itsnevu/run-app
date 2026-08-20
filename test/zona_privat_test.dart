@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rukun/data/lokasi.dart';
+import 'package:rukun/data/sensor_irama.dart';
 import 'package:rukun/domain/aturan/aturan_klaim.dart';
 import 'package:rukun/domain/aturan/zona_privat.dart';
 import 'package:rukun/domain/grid/grid_heks.dart';
@@ -33,6 +34,10 @@ void main() {
         langkahMeter: langkahMeter,
         jedaSampel: const Duration(milliseconds: 20),
       )),
+      // Unit test tidak boleh menyentuh plugin asli: akselerometer
+      // sungguhan tidak tersedia di lingkungan uji, dan kegagalannya
+      // mengaburkan apa yang sebenarnya sedang diuji di sini.
+      sensorIramaProvider.overrideWithValue(SensorIramaPalsu()),
     ]);
     addTearDown(c.dispose);
 

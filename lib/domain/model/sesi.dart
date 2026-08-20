@@ -4,10 +4,18 @@ import 'koordinat.dart';
 
 /// Satu sampel GPS.
 class TitikJejak {
-  const TitikJejak(this.koordinat, this.waktu);
+  const TitikJejak(this.koordinat, this.waktu, {this.adaLangkah});
 
   final Koordinat koordinat;
   final DateTime waktu;
+
+  /// Apakah pola langkah kaki terdeteksi saat sampel ini diambil.
+  ///
+  /// Null berarti **tidak tahu** — sensor tidak tersedia atau datanya belum
+  /// cukup. Itu berbeda dari `false`, yang berarti sensor yakin tidak ada
+  /// langkah. Perbedaan ini penting: hanya `false` yang boleh membatalkan
+  /// kontribusi seseorang.
+  final bool? adaLangkah;
 }
 
 /// Ruas antara dua sampel GPS berurutan.
@@ -29,7 +37,12 @@ class Segmen {
     return detik <= 0 ? 0 : jarakMeter / detik;
   }
 
-  ModaGerak get moda => ModaGerak.dariKecepatan(meterPerDetik);
+  /// Moda ruas ini.
+  ///
+  /// Irama langkah diambil dari titik tujuan — itulah yang menggambarkan
+  /// gerakan sepanjang ruas, bukan titik asal yang sudah lewat.
+  ModaGerak get moda =>
+      ModaGerak.dari(meterPerDetik, adaLangkah: ke.adaLangkah);
 
   bool get dihitung => moda.dihitung;
 }

@@ -11,6 +11,7 @@ import '../domain/model/sesi.dart';
 import '../data/checkpoint_sesi.dart';
 import '../data/lokasi.dart';
 import '../data/repo/repo_rukun.dart';
+import '../data/sensor_irama.dart';
 import 'penyedia.dart';
 
 /// Petak yang baru saja diklaim berkat sesi ini.
@@ -108,6 +109,8 @@ class KendaliSesi extends Notifier<StatusSesi> {
 
   CheckpointSesi get _checkpoint => CheckpointSesi(ref.read(prefProvider));
 
+  SensorIrama? _sensor;
+
   /// Zona privat pengguna. Petak di dalamnya tidak pernah jadi klaim.
   ///
   /// Dimuat dari penyimpanan setiap sesi dimulai, dan dibuat otomatis setelah
@@ -123,6 +126,8 @@ class KendaliSesi extends Notifier<StatusSesi> {
   void _bersihkan() {
     _langganan?.cancel();
     _detak?.cancel();
+    unawaited(_sensor?.berhenti());
+    _sensor = null;
   }
 
   /// Memulai sesi baru. Mengembalikan false bila izin lokasi ditolak.
@@ -137,6 +142,17 @@ class KendaliSesi extends Notifier<StatusSesi> {
     }
 
     zonaPrivat = await ref.read(repoProvider).muatZonaPrivat();
+
+    // Sensor irama dinyalakan bersama sesi dan dimatikan bersamanya —
+    // akselerometer 50 Hz yang lupa dimatikan adalah kebocoran baterai
+    // yang tidak terlihat siapa pun sampai keluhan masuk.
+    _sensor = ref.read(sensorIramaProvider);
+    try {
+      await _sensor!.mulai();
+    } catch (_) {
+      // Sesi tetap jalan tanpa sensor; adaLangkah cukup bernilai null.
+      _sensor = null;
+    }
 
     final mulai = waktu();
     _sejakCheckpoint = 0;
@@ -171,7 +187,15 @@ class KendaliSesi extends Notifier<StatusSesi> {
     // membuka wilayah dari atas sofa — dua-duanya melubangi aturan inti.
     if (!sampel.layakPakai) return;
 
-    sesi.titik.add(TitikJejak(sampel.koordinat, waktu));
+    // Irama langkah dibaca pada saat sampel masuk — inilah yang memisahkan
+    // bersepeda dari lari. Null berarti sensor tidak tersedia, dan itu
+    // sengaja dibiarkan null: hanya "yakin tidak ada langkah" yang boleh
+    // membatalkan kontribusi seseorang.
+    sesi.titik.add(TitikJejak(
+      sampel.koordinat,
+      waktu,
+      adaLangkah: _sensor?.adaLangkah,
+    ));
 
     final grid = ref.read(gridProvider);
     final segmen = sesi.segmen;

@@ -5,20 +5,10 @@ import '../../core/theme/rukun_motion.dart';
 import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
 import '../../core/theme/rukun_typography.dart';
+import '../../domain/aturan/aturan_klaim.dart';
+import '../../domain/model/pelintas.dart';
 import 'frosted_card.dart';
 import 'gradient_button.dart';
-
-/// Satu orang yang sudah melewati petak ini minggu ini.
-class Pelintas {
-  const Pelintas({required this.nama, this.kamu = false, this.inisial});
-
-  final String nama;
-  final bool kamu;
-  final String? inisial;
-
-  String get huruf =>
-      inisial ?? (nama.isNotEmpty ? nama.characters.first.toUpperCase() : '?');
-}
 
 /// **Bilah Petak** — komponen paling penting di Rukun. DESIGN.md §6.3
 ///
@@ -36,7 +26,7 @@ class BilahPetak extends StatelessWidget {
     required this.namaPetak,
     required this.pelintas,
     required this.tim,
-    this.dibutuhkan = 3,
+    this.dibutuhkan = AturanKlaim.orangDibutuhkan,
     this.onAjak,
     this.buram = true,
   });
@@ -179,13 +169,15 @@ class _Rantai extends StatelessWidget {
       anak.add(
         Semantics(
           label: terisi
-              ? '${orang!.kamu ? "Kamu" : orang.nama}, sudah lewat'
+              ? '${orang!.sebutan}, sudah lewat'
               : 'Belum terisi',
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedContainer(
-                duration: Gerak.halus,
+                duration: Gerak.kurangiGerak(context)
+                    ? const Duration(milliseconds: 120)
+                    : Gerak.halus,
                 curve: Gerak.halusKurva,
                 width: 44,
                 height: 44,
@@ -223,7 +215,7 @@ class _Rantai extends StatelessWidget {
               SizedBox(
                 width: 56,
                 child: Text(
-                  terisi ? (orang!.kamu ? 'Kamu' : orang.nama) : '?',
+                  terisi ? (orang!.sebutan) : '?',
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                   style: RukunText.caption.copyWith(

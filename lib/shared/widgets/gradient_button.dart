@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/theme/rukun_motion.dart';
 import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
 import '../../core/theme/rukun_typography.dart';
@@ -118,12 +119,13 @@ class _TombolRukunState extends State<TombolRukun> {
         onTapCancel: () => _tekan(false),
         onTap: widget.onTap,
         child: AnimatedScale(
-          scale: _ditekan ? 0.96 : 1.0,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
+          // reduceMotion: tanpa skala, hanya haptic + perubahan opasitas.
+          scale: (_ditekan && !Gerak.kurangiGerak(context)) ? 0.96 : 1.0,
+          duration: Gerak.sigap,
+          curve: Gerak.sigapKurva,
           child: AnimatedOpacity(
             opacity: _aktif ? 1.0 : 0.4,
-            duration: const Duration(milliseconds: 220),
+            duration: Gerak.sigap,
             child: Container(
               height: tinggi,
               width: widget.penuh ? double.infinity : null,

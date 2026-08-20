@@ -4,6 +4,7 @@ import 'package:rukun/core/theme/rukun_colors.dart';
 import 'package:rukun/core/theme/rukun_gradients.dart';
 import 'package:rukun/core/theme/rukun_theme.dart';
 import 'package:rukun/main.dart';
+import 'package:rukun/domain/model/pelintas.dart';
 import 'package:rukun/shared/widgets/petak_bar.dart';
 
 void main() {
@@ -91,8 +92,8 @@ void main() {
       await tester.pumpWidget(bungkus(const BilahPetak(
         namaPetak: 'Petak Tebet Barat',
         pelintas: [
-          Pelintas(nama: 'Sari'),
-          Pelintas(nama: 'Kamu', kamu: true),
+          Pelintas(id: 'u1', nama: 'Sari'),
+          Pelintas(id: 'u2', nama: 'Kamu', kamu: true),
         ],
         tim: TimWarna.biru,
         buram: false,
@@ -108,9 +109,9 @@ void main() {
       await tester.pumpWidget(bungkus(const BilahPetak(
         namaPetak: 'Petak Tebet Barat',
         pelintas: [
-          Pelintas(nama: 'Sari'),
-          Pelintas(nama: 'Kamu', kamu: true),
-          Pelintas(nama: 'Budi'),
+          Pelintas(id: 'u1', nama: 'Sari'),
+          Pelintas(id: 'u2', nama: 'Kamu', kamu: true),
+          Pelintas(id: 'u3', nama: 'Budi'),
         ],
         tim: TimWarna.biru,
         buram: false,

@@ -1,6 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:smooth_corner/smooth_corner.dart';
+
+import '../../core/util/bentuk.dart';
 
 import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
@@ -36,12 +39,12 @@ class KartuBuram extends StatelessWidget {
 
     final isi = Container(
       padding: padding,
-      decoration: BoxDecoration(
-        color: dasar.withValues(alpha: opasitas),
-        borderRadius: BorderRadius.circular(radius),
+      decoration: Bentuk.dekorasi(
+        radius: radius,
+        warna: dasar.withValues(alpha: opasitas),
         // Garis tepi rambut 0.5px — detail kecil yang membuatnya terbaca
         // sebagai kaca, bukan sekadar putih transparan.
-        border: Border.all(
+        sisi: BorderSide(
           color: gelap
               ? Colors.white.withValues(alpha: 0.10)
               : Colors.white.withValues(alpha: 0.50),
@@ -53,8 +56,9 @@ class KartuBuram extends StatelessWidget {
 
     if (hematPerforma) return isi;
 
-    return ClipRRect(
+    return SmoothClipRRect(
       borderRadius: BorderRadius.circular(radius),
+      smoothness: Bentuk.kehalusan,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: buram.blur, sigmaY: buram.blur),
         child: isi,
@@ -82,13 +86,14 @@ class KartuRukun extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: padding,
-      decoration: BoxDecoration(
+      decoration: Bentuk.dekorasi(
+        radius: radius,
         gradient: context.gradients.permukaan,
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow: elevasi ?? Elevasi.satu,
-        border: context.modeGelap
-            ? Border.all(color: Colors.white.withValues(alpha: 0.06), width: 0.5)
-            : null,
+        bayangan: elevasi ?? Elevasi.satu,
+        sisi: context.modeGelap
+            ? BorderSide(
+                color: Colors.white.withValues(alpha: 0.06), width: 0.5)
+            : BorderSide.none,
       ),
       child: child,
     );

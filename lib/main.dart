@@ -5,6 +5,8 @@ import 'core/theme/rukun_colors.dart';
 import 'core/theme/rukun_spacing.dart';
 import 'core/theme/rukun_theme.dart';
 import 'core/theme/rukun_typography.dart';
+import 'core/util/bentuk.dart';
+import 'domain/model/pelintas.dart';
 import 'shared/widgets/frosted_card.dart';
 import 'shared/widgets/gradient_button.dart';
 import 'shared/widgets/petak_bar.dart';
@@ -55,16 +57,16 @@ class LayarShowcase extends StatefulWidget {
 class _LayarShowcaseState extends State<LayarShowcase> {
   // Demo langsung dari mekanik inti: 3 orang berbeda mengklaim satu petak.
   List<Pelintas> _pelintas = const [
-    Pelintas(nama: 'Sari'),
-    Pelintas(nama: 'Kamu', kamu: true),
+    Pelintas(id: 'u1', nama: 'Sari'),
+    Pelintas(id: 'u2', nama: 'Kamu', kamu: true),
   ];
 
   void _tambahPelintas() {
     if (_pelintas.length >= 3) {
-      setState(() => _pelintas = const [Pelintas(nama: 'Sari')]);
+      setState(() => _pelintas = const [Pelintas(id: 'u1', nama: 'Sari')]);
       HapticFeedback.selectionClick();
     } else {
-      setState(() => _pelintas = [..._pelintas, const Pelintas(nama: 'Budi')]);
+      setState(() => _pelintas = [..._pelintas, const Pelintas(id: 'u3', nama: 'Budi')]);
       HapticFeedback.mediumImpact();
     }
   }
@@ -159,10 +161,10 @@ class _LayarShowcaseState extends State<LayarShowcase> {
                         Container(
                           width: 68,
                           height: 68,
-                          decoration: BoxDecoration(
+                          decoration: Bentuk.dekorasi(
+                            radius: Sudut.lg,
                             gradient: t.gradient,
-                            borderRadius: BorderRadius.circular(Sudut.lg),
-                            boxShadow: Elevasi.pendar(t.a),
+                            bayangan: Elevasi.pendar(t.a),
                           ),
                         ),
                         const SizedBox(height: Jarak.sm),
@@ -260,10 +262,7 @@ class _LayarShowcaseState extends State<LayarShowcase> {
               _Bagian('Material Buram', 'Kaca = kabut, secara harfiah'),
               Container(
                 height: 200,
-                decoration: BoxDecoration(
-                  gradient: g.misi,
-                  borderRadius: BorderRadius.circular(Sudut.lg),
-                ),
+                decoration: Bentuk.dekorasi(radius: Sudut.lg, gradient: g.misi),
                 child: Center(
                   child: Padding(
                     padding: const EdgeInsets.all(Jarak.xxl),
@@ -335,10 +334,7 @@ class _Petak extends StatelessWidget {
         horizontal: Jarak.xl,
         vertical: Jarak.lg,
       ),
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(Sudut.md),
-      ),
+      decoration: Bentuk.dekorasi(radius: Sudut.md, gradient: gradient),
       child: Row(
         children: [
           Text(nama, style: RukunText.headline.copyWith(color: warna)),

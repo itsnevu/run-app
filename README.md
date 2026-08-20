@@ -88,7 +88,9 @@ Aplikasi bisa dijalankan dari onboarding sampai merekam sesi dan membuka petak.
 | Layar Tim, Misi, Aku + bilah tab | ✅ |
 | Animasi Penyingkapan Kabut | ✅ |
 | Penyimpanan lokal | ✅ |
-| **Backend multi-pemain** | ⚠️ belum — lihat di bawah |
+| Skema backend + RLS + `RepoSupabase` | ✅ |
+| Contract test lintas implementasi | ✅ |
+| **Proyek Supabase nyata** | ⚠️ butuh kamu buat akun |
 
 ### Kendala yang harus dibereskan sebelum rilis
 
@@ -106,20 +108,35 @@ Penyelesaian sebenarnya butuh irama langkah dari akselerometer.
 tapi sesi belum benar-benar berjalan saat aplikasi ditutup. Butuh
 `flutter_background_geolocation` atau foreground service.
 
-### Soal backend
+### Backend
 
-Aturan "3 orang berbeda" pada dasarnya multi-pemain, jadi produksi tetap butuh
-server. MVP ini memakai `RepoLokal`: penyimpanan di perangkat dengan tetangga
-**tersimulasi secara deterministik** dari kode petak — bukan acak, supaya petak
-yang sama selalu menunjukkan orang yang sama dan bisa diuji.
+Skema, RLS, dan `RepoSupabase` sudah jadi — lihat **[supabase/README.md](supabase/README.md)**.
+Yang tersisa cuma membuat proyek Supabase dan menjalankan:
 
-Titik sambungannya sudah disiapkan: `RepoRukun` adalah antarmuka. Implementasi
-Supabase/Firebase cukup memenuhi kontrak yang sama tanpa mengubah satu baris pun
-di lapisan fitur.
+```bash
+supabase db push
+flutter run \
+  --dart-define=RUKUN_SUPABASE_URL=https://xxx.supabase.co \
+  --dart-define=RUKUN_SUPABASE_KUNCI_PUBLIK=sb_publishable_xxx
+```
 
-Tetangga tersimulasi sengaja tidak pernah berjumlah 3 — petak yang sudah penuh
-tanpa peran pengguna menghilangkan momen "kamu yang melengkapi", momen paling
-berharga di seluruh produk.
+Tanpa kredensial, aplikasi berjalan sepenuhnya lokal dengan tetangga
+**tersimulasi deterministik** dari kode petak — bukan acak, supaya petak yang
+sama selalu menunjukkan orang yang sama dan bisa diuji. Tetangga simulasi
+sengaja tidak pernah berjumlah 3: petak yang sudah penuh tanpa peran pengguna
+menghilangkan momen "kamu yang melengkapi", momen paling berharga di produk ini.
+
+**Privasi adalah kendala utama desain backend-nya.** Server tidak pernah
+menerima koordinat mentah atau kecepatan — tidak ada kolomnya. Tabel `lintasan`
+tidak bisa dibaca siapa pun selain pemiliknya, dan nama pelintas hanya keluar
+lewat fungsi berlingkup: kamu cuma bisa melihat detail petak yang kamu sendiri
+sudah pernah lewati. Itu mengubah serangan basis data jadi kerja fisik yang
+tidak sepadan.
+
+Perpindahan lokal → server bisa **dibuktikan**, bukan diharapkan:
+`test/kontrak_repo_test.dart` adalah suite yang harus dilewati implementasi
+`RepoRukun` mana pun. Jalankan suite yang sama terhadap `RepoSupabase` saat
+tersambung.
 
 ## Struktur proyek
 
@@ -177,14 +194,14 @@ untuk mensimulasikan orang berikutnya melewati petak.
 |---|---|
 | Flutter 3.47.1 · Dart 3.13.1 | ✅ terpasang di `~/development/flutter` |
 | Web (preview) | ✅ build & jalan |
-| Android | ⚠️ butuh Android Studio / SDK |
-| iOS | ⚠️ butuh Xcode penuh (Command Line Tools saja tidak cukup) |
+| Android SDK 36 + JDK 17 | ✅ terpasang, `flutter doctor` hijau |
+| iOS | ⚠️ butuh Xcode penuh dari App Store |
 
 ```bash
-brew install --cask android-studio   # lalu buka & pasang SDK
-# iOS: pasang Xcode dari App Store, lalu:
+# iOS — Xcode hanya bisa dipasang lewat App Store, tidak bisa dari CLI:
 #   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 #   sudo xcodebuild -runFirstLaunch
+#   sudo gem install cocoapods
 ```
 
 ## Uji

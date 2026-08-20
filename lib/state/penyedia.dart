@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/konfigurasi.dart';
 import '../data/lokasi.dart';
 import '../data/repo/repo_lokal.dart';
+import '../data/repo/repo_supabase.dart';
 import '../data/repo/repo_rukun.dart';
 import '../domain/aturan/aturan_klaim.dart';
 import '../domain/grid/grid_heks.dart';
@@ -18,9 +21,20 @@ final prefProvider = Provider<SharedPreferences>(
   (_) => throw UnimplementedError('prefProvider harus di-override di main()'),
 );
 
-final repoProvider = Provider<RepoRukun>(
-  (ref) => RepoLokal(ref.watch(prefProvider)),
-);
+/// Klien Supabase. Hanya di-override di `main()` bila kredensial tersedia.
+final supabaseProvider = Provider<SupabaseClient?>((_) => null);
+
+/// Memilih penyimpanan: Supabase bila dikonfigurasi, kalau tidak lokal.
+///
+/// Keduanya memenuhi kontrak [RepoRukun] yang sama, jadi seluruh lapisan
+/// fitur tidak tahu — dan tidak perlu tahu — mana yang sedang dipakai.
+final repoProvider = Provider<RepoRukun>((ref) {
+  final klien = ref.watch(supabaseProvider);
+  if (Konfigurasi.pakaiSupabase && klien != null) {
+    return RepoSupabase(klien);
+  }
+  return RepoLokal(ref.watch(prefProvider));
+});
 
 final lokasiProvider = Provider<LayananLokasi>((_) => const LokasiPerangkat());
 

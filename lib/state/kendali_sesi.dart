@@ -2,12 +2,40 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/aturan/aturan_klaim.dart';
 import '../domain/aturan/moda_gerak.dart';
 import '../domain/aturan/zona_privat.dart';
 import '../domain/grid/grid_petak.dart';
 import '../domain/model/koordinat.dart';
+import '../domain/model/pelintas.dart';
 import '../domain/model/sesi.dart';
+import '../data/repo/repo_rukun.dart';
 import 'penyedia.dart';
+
+/// Petak yang baru saja diklaim berkat sesi ini.
+class PetakTerklaim {
+  const PetakTerklaim({required this.petak, required this.pelintas});
+
+  final IdPetak petak;
+
+  /// Tiga orang yang melengkapi klaim, termasuk pengguna.
+  final List<Pelintas> pelintas;
+}
+
+/// Hasil sebuah sesi yang sudah selesai.
+class HasilSesi {
+  const HasilSesi({
+    required this.sesi,
+    this.petakDibuka = 0,
+    this.baruTerklaim = const [],
+  });
+
+  final Sesi sesi;
+  final int petakDibuka;
+
+  /// Petak yang berubah jadi milik tim karena pengguna menjadi orang ketiga.
+  final List<PetakTerklaim> baruTerklaim;
+}
 
 /// Keadaan sesi yang sedang berjalan.
 class StatusSesi {
@@ -126,7 +154,7 @@ class KendaliSesi extends Notifier<StatusSesi> {
   }
 
   /// Mengakhiri sesi dan menyimpan hasilnya.
-  Future<Sesi?> selesai({DateTime Function()? jam}) async {
+  Future<HasilSesi?> selesai({DateTime Function()? jam}) async {
     final sesi = state.sesi;
     if (sesi == null) return null;
 
@@ -148,11 +176,51 @@ class KendaliSesi extends Notifier<StatusSesi> {
 
     await repo.simpanSesi(akhir);
 
+    final terklaim = await _petakBaruTerklaim(repo, publik, waktu);
+
     ref.invalidate(jejakProvider);
     ref.invalidate(hariAktifProvider);
 
     state = const StatusSesi();
-    return akhir;
+    return HasilSesi(
+      sesi: akhir,
+      petakDibuka: petak.length,
+      baruTerklaim: terklaim,
+    );
+  }
+
+  /// Petak yang baru saja lengkap karena pengguna menjadi orang ketiga.
+  ///
+  /// Ini momen paling berharga di seluruh produk — bukan "petak diklaim",
+  /// tapi "kamu yang melengkapi". Karena itu hanya petak dengan jumlah
+  /// pelintas tepat [AturanKlaim.orangDibutuhkan] yang dihitung: kalau sudah
+  /// lebih, pengguna bukan penentu dan perayaan jadi hampa.
+  Future<List<PetakTerklaim>> _petakBaruTerklaim(
+    RepoRukun repo,
+    Set<IdPetak> petak,
+    DateTime sekarang,
+  ) async {
+    final profil = await repo.muatProfil();
+    if (profil == null || petak.isEmpty) return const [];
+
+    final semua = await repo.lintasanBanyakPetak(petak);
+    final hasil = <PetakTerklaim>[];
+
+    for (final entri in semua.entries) {
+      final klaim = AturanKlaim.evaluasi(
+        entri.value,
+        sekarang: sekarang,
+        timSudutPandang: profil.kelurahanId,
+      );
+      if (klaim.timPemilik != profil.kelurahanId) continue;
+
+      final pelintas = klaim.pelintasTim(profil.kelurahanId);
+      if (pelintas.length != AturanKlaim.orangDibutuhkan) continue;
+      if (!pelintas.any((p) => p.kamu)) continue;
+
+      hasil.add(PetakTerklaim(petak: entri.key, pelintas: pelintas));
+    }
+    return hasil;
   }
 
   /// Membatalkan sesi tanpa menyimpan.

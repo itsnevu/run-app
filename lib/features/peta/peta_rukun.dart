@@ -120,6 +120,12 @@ class PetaRukun extends StatelessWidget {
   }
 
   /// Ubin peta, didesaturasi. Peta adalah kanvas, bukan bintang.
+  ///
+  /// ⚠️ **Belum siap produksi.** Server ubin publik OpenStreetMap dijalankan
+  /// dengan donasi dan Kebijakan Penggunaan Ubin mereka melarang aplikasi
+  /// dengan lalu lintas besar. Sebelum rilis, ganti ke penyedia berbayar
+  /// (MapTiler, Stadia, Protomaps) atau host ubin sendiri.
+  /// Lihat: https://operations.osmfoundation.org/policies/tiles
   Widget _lapisanUbin(bool gelap) {
     return ColorFiltered(
       colorFilter: ColorFilter.matrix(_matriksDesaturasi(gelap ? 0.15 : 0.35)),
@@ -141,7 +147,7 @@ class PetaRukun extends StatelessWidget {
             points: [
               for (final k in grid.batas(entri.key)) k.latLng,
             ],
-            color: entri.value.a.withValues(alpha: 0.28),
+            color: entri.value.isianPeta,
             borderColor: entri.value.tepiPeta,
             borderStrokeWidth: 2,
           ),

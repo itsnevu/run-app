@@ -20,9 +20,9 @@ import '../peta/peta_rukun.dart';
 /// Angka besar yang ditampilkan adalah durasi, karena itulah yang menentukan
 /// kontribusi ke tim.
 class LayarSesi extends ConsumerWidget {
-  const LayarSesi({super.key, this.onSelesai});
+  const LayarSesi({super.key, this.onSelesaiSesi});
 
-  final ValueChanged<int>? onSelesai;
+  final ValueChanged<HasilSesi>? onSelesaiSesi;
 
   static const _acuan = Koordinat(-6.2264, 106.8556);
 
@@ -110,11 +110,10 @@ class LayarSesi extends ConsumerWidget {
                     // Tekan lama, mencegah tersentuh tak sengaja.
                     _TombolSelesai(
                       onSelesai: () async {
-                        final jumlah = status.petakSesi.length;
-                        await ref
+                        final hasil = await ref
                             .read(kendaliSesiProvider.notifier)
                             .selesai();
-                        onSelesai?.call(jumlah);
+                        if (hasil != null) onSelesaiSesi?.call(hasil);
                       },
                     ),
                   ],

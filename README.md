@@ -90,6 +90,22 @@ Aplikasi bisa dijalankan dari onboarding sampai merekam sesi dan membuka petak.
 | Penyimpanan lokal | ✅ |
 | **Backend multi-pemain** | ⚠️ belum — lihat di bawah |
 
+### Kendala yang harus dibereskan sebelum rilis
+
+**Ubin peta.** Saat ini memakai server ubin publik OpenStreetMap. Server itu
+dijalankan dengan donasi dan Kebijakan Penggunaan Ubin mereka **melarang
+aplikasi dengan lalu lintas besar**. Sebelum rilis harus pindah ke penyedia
+berbayar (MapTiler, Stadia, Protomaps) atau host ubin sendiri.
+
+**Bersepeda vs lari.** GPS saja tidak bisa membedakan keduanya — rentang
+kecepatannya bertumpuk (4–8 m/detik). Ambang `ModaGerak.ambangKendaraan`
+saat ini 7 m/detik, jadi bersepeda santai masih bisa lolos sebagai lari.
+Penyelesaian sebenarnya butuh irama langkah dari akselerometer.
+
+**Pelacakan latar belakang.** Izin sudah dikonfigurasi di iOS dan Android,
+tapi sesi belum benar-benar berjalan saat aplikasi ditutup. Butuh
+`flutter_background_geolocation` atau foreground service.
+
 ### Soal backend
 
 Aturan "3 orang berbeda" pada dasarnya multi-pemain, jadi produksi tetap butuh

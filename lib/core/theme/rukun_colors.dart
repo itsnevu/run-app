@@ -103,11 +103,12 @@ enum TimWarna {
       );
 
   /// Isian poligon wilayah di peta — 28% (DESIGN.md §2.5).
-  LinearGradient get isianPeta => LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [a.withValues(alpha: 0.28), b.withValues(alpha: 0.28)],
-      );
+  ///
+  /// Warna tunggal, bukan gradient: poligon peta hanya menerima satu warna,
+  /// dan pada ukuran satu petak gradient tidak akan terbaca sama sekali.
+  /// Peta harus tetap terbaca sebagai peta — warna tim menginformasikan,
+  /// bukan mendominasi.
+  Color get isianPeta => a.withValues(alpha: 0.28);
 
   /// Garis tepi poligon wilayah — 90%, tebal 2px.
   Color get tepiPeta => a.withValues(alpha: 0.90);

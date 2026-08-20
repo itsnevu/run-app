@@ -9,6 +9,7 @@ import 'features/peta/layar_peta.dart';
 import 'features/sesi/layar_sesi.dart';
 import 'features/tim/layar_tim.dart';
 import 'shared/widgets/bilah_tab.dart';
+import 'shared/widgets/perayaan_klaim.dart';
 import 'state/kendali_sesi.dart';
 import 'state/penyedia.dart';
 
@@ -73,7 +74,8 @@ class _CangkangRukunState extends ConsumerState<CangkangRukun> {
     final status = ref.read(kendaliSesiProvider);
 
     if (status.merekam) {
-      await kendali.selesai();
+      final hasil = await kendali.selesai();
+      if (hasil != null) await _tampilkanHasil(hasil);
       return;
     }
 
@@ -83,23 +85,41 @@ class _CangkangRukunState extends ConsumerState<CangkangRukun> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => LayarSesi(
-          onSelesai: (jumlah) {
+          onSelesaiSesi: (hasil) async {
             Navigator.of(context).pop();
-            _tampilkanRingkasan(jumlah);
+            await _tampilkanHasil(hasil);
           },
         ),
       ),
     );
   }
 
-  void _tampilkanRingkasan(int jumlahPetak) {
+  /// Perayaan didahulukan sebelum ringkasan — momen "kamu yang melengkapi"
+  /// adalah yang paling berharga, jangan sampai tertutup notifikasi biasa.
+  Future<void> _tampilkanHasil(HasilSesi hasil) async {
     if (!mounted) return;
+
+    if (hasil.baruTerklaim.isNotEmpty) {
+      final kelurahan = ref.read(kelurahanSayaProvider).valueOrNull;
+      if (kelurahan != null) {
+        final pertama = hasil.baruTerklaim.first;
+        await PerayaanKlaim.tampilkan(
+          context,
+          namaPetak: 'Petak ${kelurahan.nama}',
+          namaTim: kelurahan.nama,
+          warna: kelurahan.warna,
+          pelintas: pertama.pelintas,
+        );
+        if (!mounted) return;
+      }
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          jumlahPetak == 0
+          hasil.petakDibuka == 0
               ? 'Sesi tersimpan.'
-              : 'Kamu buka $jumlahPetak petak. Jejakmu nambah.',
+              : 'Kamu buka ${hasil.petakDibuka} petak. Jejakmu nambah.',
         ),
         behavior: SnackBarBehavior.floating,
       ),

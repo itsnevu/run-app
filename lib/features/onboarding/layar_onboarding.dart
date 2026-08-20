@@ -61,10 +61,10 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
 
   Future<void> _mintaIzin() async {
     final lokasi = ref.read(lokasiProvider);
-    final boleh = await lokasi.mintaIzin();
+    final izin = await lokasi.mintaIzin();
     if (!mounted) return;
 
-    if (!boleh) {
+    if (!izin.bolehMelacak) {
       setState(() => _izinDitolak = true);
       return;
     }

@@ -56,12 +56,25 @@ class Profil {
   const Profil({
     required this.id,
     required this.nama,
-    required this.kelurahanId,
+    this.kelurahanId = '',
   });
 
   final String id;
   final String nama;
+
+  /// Kelurahan pengguna, atau kosong bila izin lokasi masih ditunda.
+  ///
+  /// Kosong bukan keadaan rusak: pengguna boleh masuk dan melihat-lihat
+  /// dulu sebelum memberi lokasi. Kelurahan menyusul saat ia siap.
   final String kelurahanId;
 
+  bool get punyaKelurahan => kelurahanId.isNotEmpty;
+
   String get huruf => nama.isNotEmpty ? nama.trim()[0].toUpperCase() : '?';
+
+  Profil salin({String? id, String? nama, String? kelurahanId}) => Profil(
+        id: id ?? this.id,
+        nama: nama ?? this.nama,
+        kelurahanId: kelurahanId ?? this.kelurahanId,
+      );
 }

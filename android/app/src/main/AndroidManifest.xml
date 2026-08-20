@@ -2,18 +2,25 @@
     <!-- Lokasi: membuka kabut & menghitung kontribusi ke kelurahan -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Sesi tetap berjalan saat layar mati / HP di saku -->
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Sesi tetap berjalan saat layar mati / HP di saku.
+         Perekaman selalu dimulai dari aplikasi yang terlihat, lalu dipegang
+         foreground service — jadi ACCESS_BACKGROUND_LOCATION tidak diperlukan,
+         dan meminta izin yang tidak dipakai adalah sebab penolakan Play Store
+         yang umum. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <!-- Membedakan jalan / lari / naik kendaraan -->
-    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- Notifikasi foreground service; wajib sejak Android 13. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Menjaga CPU tetap menerima sampel GPS saat layar mati. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:label="rukun"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

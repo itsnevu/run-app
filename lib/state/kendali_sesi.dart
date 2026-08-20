@@ -6,9 +6,9 @@ import '../domain/aturan/aturan_klaim.dart';
 import '../domain/aturan/moda_gerak.dart';
 import '../domain/aturan/zona_privat.dart';
 import '../domain/grid/grid_petak.dart';
-import '../domain/model/koordinat.dart';
 import '../domain/model/pelintas.dart';
 import '../domain/model/sesi.dart';
+import '../data/lokasi.dart';
 import '../data/repo/repo_rukun.dart';
 import 'penyedia.dart';
 
@@ -28,6 +28,7 @@ class HasilSesi {
     required this.sesi,
     this.petakDibuka = 0,
     this.baruTerklaim = const [],
+    this.tersimpan = true,
   });
 
   final Sesi sesi;
@@ -35,6 +36,10 @@ class HasilSesi {
 
   /// Petak yang berubah jadi milik tim karena pengguna menjadi orang ketiga.
   final List<PetakTerklaim> baruTerklaim;
+
+  /// Apakah sesi berhasil disimpan. False berarti jaringan atau penyimpanan
+  /// gagal — jejaknya ada di layar, tapi belum sampai ke tim.
+  final bool tersimpan;
 }
 
 /// Keadaan sesi yang sedang berjalan.
@@ -45,6 +50,7 @@ class StatusSesi {
     this.petakSesi = const {},
     this.moda = ModaGerak.diam,
     this.izinDitolak = false,
+    this.izin,
   });
 
   /// Sesi aktif, atau null bila tidak sedang merekam.
@@ -59,6 +65,10 @@ class StatusSesi {
   final ModaGerak moda;
   final bool izinDitolak;
 
+  /// Sebab pasti kegagalan izin — layanan mati, ditolak, atau ditolak
+  /// permanen. UI butuh membedakannya: tiga sebab, tiga jalan keluar.
+  final StatusIzin? izin;
+
   bool get merekam => sesi != null && sesi!.berjalan;
 
   Duration get durasi => sesi?.durasi ?? Duration.zero;
@@ -70,6 +80,7 @@ class StatusSesi {
     Set<IdPetak>? petakSesi,
     ModaGerak? moda,
     bool? izinDitolak,
+    StatusIzin? izin,
     bool kosongkanSesi = false,
   }) =>
       StatusSesi(
@@ -78,12 +89,13 @@ class StatusSesi {
         petakSesi: petakSesi ?? this.petakSesi,
         moda: moda ?? this.moda,
         izinDitolak: izinDitolak ?? this.izinDitolak,
+        izin: izin ?? this.izin,
       );
 }
 
 /// Mengendalikan perekaman sesi: GPS masuk, petak keluar.
 class KendaliSesi extends Notifier<StatusSesi> {
-  StreamSubscription<Koordinat>? _langganan;
+  StreamSubscription<SampelLokasi>? _langganan;
   Timer? _detak;
 
   /// Zona privat pengguna. Petak di dalamnya tidak pernah jadi klaim.
@@ -108,8 +120,9 @@ class KendaliSesi extends Notifier<StatusSesi> {
     final waktu = jam ?? DateTime.now;
     final lokasi = ref.read(lokasiProvider);
 
-    if (!await lokasi.mintaIzin()) {
-      state = state.salin(izinDitolak: true);
+    final izin = await lokasi.mintaIzin();
+    if (!izin.bolehMelacak) {
+      state = state.salin(izinDitolak: true, izin: izin);
       return false;
     }
 
@@ -125,15 +138,28 @@ class KendaliSesi extends Notifier<StatusSesi> {
       if (state.merekam) state = state.salin();
     });
 
-    _langganan = lokasi.aliranPosisi().listen((k) => _terimaPosisi(k, waktu()));
+    // Waktu diambil dari sampel GPS, bukan dari saat sampel diterima:
+    // FusedLocationProvider mem-batch pembaruan saat aplikasi di latar, dan
+    // memakai waktu terima membuat seluruh batch tiba dengan selisih ~0 →
+    // kecepatan tak hingga → segmen dibuang sebagai kendaraan. Jalan yang
+    // nyata terhapus diam-diam. Pengujian tetap boleh menyuntik jam sendiri.
+    _langganan = lokasi.aliranPosisi().listen(
+      (s) => _terimaPosisi(s, jam != null ? waktu() : s.waktu),
+      onError: (_) => state = state.salin(izinDitolak: true),
+    );
     return true;
   }
 
-  void _terimaPosisi(Koordinat k, DateTime waktu) {
+  void _terimaPosisi(SampelLokasi sampel, DateTime waktu) {
     final sesi = state.sesi;
     if (sesi == null || !sesi.berjalan) return;
 
-    sesi.titik.add(TitikJejak(k, waktu));
+    // Sampel buruk dibuang sebelum menyentuh apa pun. Fix dengan akurasi 60 m
+    // menginterpolasi petak yang tidak pernah diinjak, dan lokasi palsu
+    // membuka wilayah dari atas sofa — dua-duanya melubangi aturan inti.
+    if (!sampel.layakPakai) return;
+
+    sesi.titik.add(TitikJejak(sampel.koordinat, waktu));
 
     final grid = ref.read(gridProvider);
     final segmen = sesi.segmen;
@@ -170,32 +196,47 @@ class KendaliSesi extends Notifier<StatusSesi> {
     final repo = ref.read(repoProvider);
     final grid = ref.read(gridProvider);
 
-    // Perlindungan rumah dibuat sebelum apa pun dikirim — privasi harus
-    // menyala sejak sesi pertama, bukan menunggu pengguna menemukannya
-    // di pengaturan.
-    await _pastikanZonaRumah(repo, akhir);
-
     // Jejak pribadi menyimpan SEMUA petak — ini milik pengguna sepenuhnya.
     final petak = akhir.petakDilewati(grid);
-    await repo.tambahJejak(petak);
 
-    // Klaim tim hanya menerima petak di luar zona privat. Petak yang
-    // disaring di sini tidak pernah meninggalkan perangkat.
-    final publik = Privasi.saring(petak, zonaPrivat, grid);
-    await repo.catatLintasan(publik, waktu);
+    // Seluruh penyimpanan dibungkus: jaringan mati di tengah jalan tidak
+    // boleh meninggalkan UI yang masih menyangka sedang merekam padahal GPS
+    // sudah dilepas. Sesi yang gagal terkirim tetap dikembalikan ke pemanggil
+    // supaya pengguna melihat hasil larinya, bukan layar kosong.
+    var tersimpan = true;
+    var terklaim = const <PetakTerklaim>[];
+    try {
+      // Perlindungan rumah dibuat sebelum apa pun dikirim — privasi harus
+      // menyala sejak sesi pertama, bukan menunggu pengguna menemukannya
+      // di pengaturan.
+      await _pastikanZonaRumah(repo, akhir);
 
-    await repo.simpanSesi(akhir);
+      await repo.tambahJejak(petak);
 
-    final terklaim = await _petakBaruTerklaim(repo, publik, waktu);
+      // Klaim tim hanya menerima petak di luar zona privat. Petak yang
+      // disaring di sini tidak pernah meninggalkan perangkat.
+      final publik = Privasi.saring(petak, zonaPrivat, grid);
+      await repo.catatLintasan(publik, waktu);
 
-    ref.invalidate(jejakProvider);
-    ref.invalidate(hariAktifProvider);
+      await repo.simpanSesi(akhir);
 
-    state = const StatusSesi();
+      terklaim = await _petakBaruTerklaim(repo, publik, waktu);
+    } catch (_) {
+      // Kegagalan penyimpanan bukan kegagalan sesi. Sampai ada antrean kirim
+      // yang tahan mati jaringan, sesi ini hilang dari server — dan itu harus
+      // terlihat jujur di UI, bukan disembunyikan.
+      tersimpan = false;
+    } finally {
+      ref.invalidate(jejakProvider);
+      ref.invalidate(hariAktifProvider);
+      state = const StatusSesi();
+    }
+
     return HasilSesi(
       sesi: akhir,
       petakDibuka: petak.length,
       baruTerklaim: terklaim,
+      tersimpan: tersimpan,
     );
   }
 

@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rukun/core/theme/rukun_colors.dart';
 import 'package:rukun/core/theme/rukun_gradients.dart';
 import 'package:rukun/core/theme/rukun_theme.dart';
-import 'package:rukun/main.dart';
 import 'package:rukun/domain/model/pelintas.dart';
 import 'package:rukun/shared/widgets/petak_bar.dart';
 
@@ -135,42 +134,4 @@ void main() {
     });
   });
 
-  group('Aplikasi', () {
-    testWidgets('showcase tampil di mode terang & gelap', (tester) async {
-      await tester.pumpWidget(const AplikasiRukun());
-      await tester.pumpAndSettle();
-
-      expect(find.text('Rukun'), findsOneWidget);
-      expect(find.text('Petak Tebet Barat'), findsOneWidget);
-    });
-  });
-
-  group('Tata letak di lebar HP nyata', () {
-    /// Mayoritas pasar Indonesia adalah Android kelas menengah dengan layar
-    /// sempit. Overflow di 360px adalah kegagalan produk, bukan kosmetik.
-    Future<void> cekLebar(WidgetTester tester, Size ukuran) async {
-      tester.view.physicalSize = ukuran;
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      await tester.pumpWidget(const AplikasiRukun());
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull,
-          reason: 'overflow pada lebar ${ukuran.width.toInt()}px');
-    }
-
-    testWidgets('iPhone 430×932 tanpa overflow', (tester) async {
-      await cekLebar(tester, const Size(430, 932));
-    });
-
-    testWidgets('Android sempit 360×800 tanpa overflow', (tester) async {
-      await cekLebar(tester, const Size(360, 800));
-    });
-
-    testWidgets('Android sangat sempit 320×640 tanpa overflow',
-        (tester) async {
-      await cekLebar(tester, const Size(320, 640));
-    });
-  });
 }

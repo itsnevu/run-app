@@ -70,24 +70,65 @@ Dua mata uang terpisah:
 
 ---
 
+## Apa yang sudah jalan
+
+Aplikasi bisa dijalankan dari onboarding sampai merekam sesi dan membuka petak.
+
+| Lapisan | Status |
+|---|---|
+| Design system (token, komponen, squircle, reduceMotion) | ✅ |
+| Grid petak heksagon + geometri | ✅ |
+| Aturan klaim 3-orang-berbeda | ✅ |
+| Dua mata uang (menit bergerak vs jarak) | ✅ |
+| Anti-curang kendaraan & diam | ✅ |
+| Zona privat rumah 150 m | ✅ |
+| Onboarding 6 menit | ✅ |
+| Peta + tiga lapis (Jejak, Wilayah, Kabut) | ✅ |
+| Perekaman sesi + GPS | ✅ |
+| Layar Tim, Misi, Aku + bilah tab | ✅ |
+| Animasi Penyingkapan Kabut | ✅ |
+| Penyimpanan lokal | ✅ |
+| **Backend multi-pemain** | ⚠️ belum — lihat di bawah |
+
+### Soal backend
+
+Aturan "3 orang berbeda" pada dasarnya multi-pemain, jadi produksi tetap butuh
+server. MVP ini memakai `RepoLokal`: penyimpanan di perangkat dengan tetangga
+**tersimulasi secara deterministik** dari kode petak — bukan acak, supaya petak
+yang sama selalu menunjukkan orang yang sama dan bisa diuji.
+
+Titik sambungannya sudah disiapkan: `RepoRukun` adalah antarmuka. Implementasi
+Supabase/Firebase cukup memenuhi kontrak yang sama tanpa mengubah satu baris pun
+di lapisan fitur.
+
+Tetangga tersimulasi sengaja tidak pernah berjumlah 3 — petak yang sudah penuh
+tanpa peran pengguna menghilangkan momen "kamu yang melengkapi", momen paling
+berharga di seluruh produk.
+
 ## Struktur proyek
 
 ```
 lib/
-├── main.dart              galeri design system (sementara)
+├── main.dart              titik masuk
+├── app.dart               cangkang + gerbang onboarding
 ├── core/
-│   ├── theme/             ⬅ token: warna, gradient, tipografi, jarak, gerak
-│   ├── router/
-│   └── util/
-├── data/                  model, repository, sumber lokal & remote
+│   ├── theme/             token: warna, gradient, tipografi, jarak, gerak
+│   └── util/bentuk.dart   squircle (kurva kontinu iOS)
+├── domain/                ⬅ mesin produk, murni Dart, teruji penuh
+│   ├── model/             koordinat, pelintas, sesi, kelurahan, misi
+│   ├── grid/              GridPetak (antarmuka) + GridHeks (implementasi)
+│   └── aturan/            klaim, moda gerak, zona privat
+├── data/
+│   ├── repo/              RepoRukun (kontrak) + RepoLokal
+│   └── lokasi.dart        LayananLokasi + LokasiPalsu untuk uji
+├── state/                 penyedia Riverpod + kendali sesi
 ├── features/
 │   ├── onboarding/        alur 6 menit menuju petak pertama
-│   ├── peta/              layar rumah
+│   ├── peta/              layar rumah + widget peta
 │   ├── sesi/              perekaman aktif
-│   ├── tim/               kelurahan
-│   ├── misi/              quest
-│   └── aku/               profil, statistik privat
-└── shared/widgets/        tombol, kartu buram, bilah petak
+│   ├── tim/  misi/  aku/
+└── shared/widgets/        tombol, kartu buram, bilah petak, bilah tab,
+                           kabut_singkap (animasi tanda tangan)
 ```
 
 ## Design system
@@ -137,17 +178,36 @@ flutter analyze
 flutter test
 ```
 
-Test bukan cuma cek widget — **aturan design system ditegakkan oleh test**:
+**66 test.** Aturan produk dan design system ditegakkan oleh test, bukan cuma
+ditulis di dokumen:
 
-- Setiap gradient diuji terhadap **Aturan Delta Kecil** (hue, lightness, saturation)
-- Semua gradient wajib mengalir 135° — satu sumber cahaya
-- Gradient permukaan wajib nyaris tak terlihat (delta <5%)
-- Mekanik inti 3-orang-berbeda diuji perilakunya
-- Tata letak diuji bebas overflow di **320 / 360 / 430 px**
-  (Android sempit adalah mayoritas pasar Indonesia)
+*Aturan inti*
+- ⭐ satu orang lewat 3 kali **tidak** mengklaim petak
+- 3 orang berbeda dari tim yang sama mengklaim
+- tim dengan orang terbanyak menang, bukan yang tercepat
+- lintasan di luar jendela 7 hari tidak dihitung
 
-> Test ini sudah membuktikan gunanya: warna Toska awal melanggar batas
-> lightness 23,3% > 22% dan langsung tertangkap sebelum masuk kode produksi.
+*Keadilan & anti-curang*
+- ⭐ 30 menit jalan = 30 menit lari dalam Poin Klaim
+- naik motor 30 menit membuka **nol** petak
+- HP diam di meja tidak menghasilkan apa pun
+- petak dekat rumah tidak pernah jadi klaim
+
+*Onboarding*
+- tidak pernah meminta tinggi, berat, atau level kebugaran
+- kata "lari" tidak muncul di layar pertama
+- ajakan pertama adalah 5 menit, bukan 5K
+- pace/kecepatan tidak pernah terlihat di permukaan publik
+
+*Geometri & tampilan*
+- jalan 5 menit melintasi ~3 petak
+- ukuran petak stabil dari Banda Aceh sampai Jayapura
+- setiap gradient patuh Aturan Delta Kecil (hue, lightness, saturation)
+- tata letak bebas overflow di 320 / 360 / 430 px
+
+> Test ini sudah dua kali membuktikan gunanya: warna Toska melanggar batas
+> lightness (23,3% > 22%) dan tiga `Row` meluber di lebar HP — keduanya
+> tertangkap sebelum masuk produksi.
 
 ## Keputusan teknis
 

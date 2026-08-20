@@ -23,6 +23,7 @@ class KolomTeksRukun extends StatelessWidget {
     this.otomatis,
     this.onKirim,
     this.aktif = true,
+    this.fokusOtomatis = false,
   });
 
   final TextEditingController kendali;
@@ -35,6 +36,7 @@ class KolomTeksRukun extends StatelessWidget {
   final Iterable<String>? otomatis;
   final ValueChanged<String>? onKirim;
   final bool aktif;
+  final bool fokusOtomatis;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +48,7 @@ class KolomTeksRukun extends StatelessWidget {
       decoration: Bentuk.dekorasi(radius: Sudut.md, warna: latar),
       child: TextField(
         controller: kendali,
+        autofocus: fokusOtomatis,
         obscureText: rahasia,
         enabled: aktif,
         keyboardType: jenis,

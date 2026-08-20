@@ -32,22 +32,30 @@ class AplikasiRukun extends StatelessWidget {
   }
 }
 
-/// Menentukan apakah pengguna perlu onboarding atau langsung ke peta.
+/// Menentukan apakah pengguna perlu pembuka atau langsung ke peta.
+///
+/// **Tidak ada layar masuk di sini, dan itu disengaja.** Aplikasi terbuka
+/// langsung ke isinya; akun ditawarkan belakangan lewat tab Aku, hanya kalau
+/// pengguna sendiri yang mau. Selain lebih sopan, ini syarat App Store
+/// §5.1.1(v) — memaksa pendaftaran di detik pertama adalah alasan penolakan
+/// yang paling sering terjadi.
+///
+/// Yang menentukan hanya satu hal: apakah pembuka sudah pernah dilewati.
+/// Sengaja bukan "apakah profil sudah ada" — profil bisa lahir di tengah
+/// pembuka (begitu lokasi diberikan), dan gerbang yang mengintip profil akan
+/// melempar pengguna keluar tepat di tengah kalimat.
 class GerbangRukun extends ConsumerWidget {
   const GerbangRukun({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profil = ref.watch(profilProvider);
+    if (ref.watch(pembukaSelesaiProvider)) return const CangkangRukun();
 
-    return profil.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
-      data: (p) => p == null
-          ? LayarOnboarding(onSelesai: () => ref.invalidate(profilProvider))
-          : const CangkangRukun(),
+    return LayarOnboarding(
+      onSelesai: () {
+        ref.invalidate(profilProvider);
+        ref.invalidate(kelurahanSayaProvider);
+      },
     );
   }
 }

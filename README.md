@@ -65,6 +65,8 @@ Dua mata uang terpisah:
 - ❌ Tanpa papan peringkat melawan orang asing
 - ❌ Tanpa tinggi/berat badan saat onboarding. Selamanya.
 - ❌ Tanpa notifikasi rasa bersalah
+- ❌ **Tanpa layar login di pintu depan.** Akun ditawarkan di tab Aku, tidak
+  pernah menghadang
 - ✅ Satu-satunya angka publik: **kehadiran**
 - ✅ Jejak pribadi tidak pernah reset, bahkan antar musim
 
@@ -90,6 +92,8 @@ Aplikasi bisa dijalankan dari onboarding sampai merekam sesi dan membuka petak.
 | Layar Ringkasan sesi | ✅ |
 | Zona privat rumah — **otomatis menyala** | ✅ |
 | Penyimpanan lokal | ✅ |
+| **Mode tamu** — aplikasi jalan penuh tanpa akun | ✅ |
+| Masuk / daftar opsional + hapus akun di dalam aplikasi | ✅ |
 | Skema backend + RLS + `RepoSupabase` | ✅ |
 | Contract test lintas implementasi | ✅ |
 | **Proyek Supabase nyata** | ⚠️ butuh kamu buat akun |
@@ -113,6 +117,49 @@ tapi sesi belum benar-benar berjalan saat aplikasi ditutup. Butuh
 **Ikon & splash** masih bawaan Flutter.
 
 **Data Tim & Misi** masih contoh, belum tersambung ke sumber nyata.
+
+## Masuk tanpa akun
+
+Aplikasi terbuka **langsung ke isinya**. Tidak ada layar masuk, tidak ada
+tombol "Daftar dulu", tidak ada fitur yang berubah abu-abu sampai kamu punya
+akun. Pembuka pun punya **"Lihat-lihat dulu"** sejak detik pertama, dan
+**"Lewati"** di setiap langkah.
+
+Dua alasan, dan keduanya nyata:
+
+1. **App Store Review Guideline §5.1.1(v)** melarang aplikasi mewajibkan
+   pendaftaran untuk fitur yang tidak membutuhkan akun. Login yang menghadang
+   di detik pertama adalah salah satu alasan penolakan paling sering.
+2. Terlepas dari Apple: gerbang akun membunuh aktivasi sebelum pengguna sempat
+   melihat nilainya. Di aplikasi yang 70–80% penggunanya tidak pernah kembali
+   setelah sesi pertama, itu bukan gesekan kecil.
+
+Bentuk teknisnya:
+
+| | Tamu | Sudah masuk |
+|---|---|---|
+| Penyimpanan | `RepoLokal` di perangkat | `RepoSupabase` |
+| Buka petak, Jejak, misi, peta | ✅ penuh | ✅ penuh |
+| Klaim bareng tetangga (butuh 3 orang nyata) | — | ✅ |
+| Progres pindah HP | — | ✅ |
+
+`repoProvider` memilih penyimpanan dari status akun, jadi lapisan fitur tidak
+pernah tahu bedanya. Saat pengguna akhirnya masuk, `AksiProfil.selarasSetelahMasuk`
+mengangkat nama, kelurahan, dan seluruh Jejak lokal ke server sekali jalan —
+janji "progresmu ikut" ditepati di kode, bukan di halaman pemasaran.
+
+**Lokasi juga boleh ditunda.** Profil dengan `kelurahanId` kosong adalah
+keadaan yang sah: peta tetap tampil berkabut, tab Tim menampilkan ajakan yang
+bisa diabaikan, dan izin diminta lagi kapan pun pengguna siap.
+
+**Hapus akun ada di dalam aplikasi** — tab Aku → Hapus akun. Ini juga syarat
+§5.1.1(v): menonaktifkan tidak dihitung, datanya harus benar-benar hilang.
+Lihat `supabase/migrations/0004_hapus_akun.sql`. Zona privat tidak ikut
+disebut di sana karena ia memang tidak pernah dikirim ke server; ia dihapus
+lewat "Hapus data di HP ini".
+
+Dijaga oleh `test/tamu_test.dart` — termasuk uji yang gagal kalau layar
+pertama sampai menampilkan kata "Masuk" atau "Daftar".
 
 ### Backend
 
@@ -162,7 +209,8 @@ lib/
 │   └── lokasi.dart        LayananLokasi + LokasiPalsu untuk uji
 ├── state/                 penyedia Riverpod + kendali sesi
 ├── features/
-│   ├── onboarding/        alur 6 menit menuju petak pertama
+│   ├── onboarding/        alur 6 menit menuju petak pertama (bisa dilewati)
+│   ├── masuk/             lembar masuk/daftar — opsional, tidak pernah memaksa
 │   ├── peta/              layar rumah + widget peta
 │   ├── sesi/              perekaman aktif
 │   ├── tim/  misi/  aku/

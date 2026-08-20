@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/rukun_colors.dart';
+import '../../domain/aturan/aturan_klaim.dart';
 import '../../domain/aturan/zona_privat.dart';
 import '../../domain/grid/grid_petak.dart';
 import '../../domain/model/kelurahan.dart';
@@ -264,6 +265,64 @@ class RepoLokal implements RepoRukun {
           );
         }(),
     ];
+  }
+
+  // ── Kontribusi & petak hangus ───────────────────────────────────
+  @override
+  Future<List<KontribusiAnggota>> kontribusiTim(String kelurahanId) async {
+    final profil = await muatProfil();
+    final menitSaya = await _menitMingguIni();
+
+    // Tetangga disimulasikan deterministik dari id kelurahan supaya papan
+    // tidak berubah-ubah tiap kali dibuka.
+    final acak = math.Random(kelurahanId.hashCode);
+    final hasil = <KontribusiAnggota>[
+      for (var i = 0; i < 6; i++)
+        KontribusiAnggota(
+          nama: _namaTetangga[(kelurahanId.hashCode.abs() + i) %
+              _namaTetangga.length],
+          menitBergerak: 60 + acak.nextInt(180),
+        ),
+      KontribusiAnggota(
+        nama: profil?.nama ?? 'Kamu',
+        menitBergerak: menitSaya,
+        kamu: true,
+      ),
+    ]..sort((a, b) => b.menitBergerak.compareTo(a.menitBergerak));
+
+    return hasil;
+  }
+
+  Future<int> _menitMingguIni() async {
+    final sesi = await muatSesi();
+    final batas = _jam().subtract(const Duration(days: 7));
+    return sesi
+        .where((s) => s.mulai.isAfter(batas))
+        .fold<int>(0, (jumlah, s) => jumlah + s.menitBergerak);
+  }
+
+  @override
+  Future<Set<IdPetak>> petakAkanHangus({
+    Duration ambang = const Duration(hours: 24),
+  }) async {
+    final profil = await muatProfil();
+    if (profil == null) return {};
+
+    final tersimpan = _bacaLintasan();
+    final sekarang = _jam();
+    final hasil = <IdPetak>{};
+
+    for (final entri in tersimpan.entries) {
+      final waktu = [
+        for (final l in entri.value) DateTime.parse(l['waktu'] as String),
+      ];
+      if (waktu.isEmpty) continue;
+      waktu.sort();
+      if (AturanKlaim.akanHangus(waktu.last, sekarang, ambang: ambang)) {
+        hasil.add(IdPetak.dariKode(entri.key));
+      }
+    }
+    return hasil;
   }
 
   // ── Zona privat ─────────────────────────────────────────────────

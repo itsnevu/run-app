@@ -43,6 +43,34 @@ class Misi {
   bool get bersponsor => disponsoriOleh != null;
   double get rasio => target == 0 ? 0 : (kemajuan / target).clamp(0.0, 1.0);
 
+  Misi salin({int? kemajuan}) => Misi(
+        id: id,
+        judul: judul,
+        keterangan: keterangan,
+        tingkat: tingkat,
+        disponsoriOleh: disponsoriOleh,
+        selesai: (kemajuan ?? this.kemajuan) >= target,
+        kemajuan: kemajuan ?? this.kemajuan,
+        target: target,
+      );
+
+  /// Misi dengan kemajuan dihitung dari aktivitas nyata pengguna.
+  ///
+  /// Angka-angka ini datang dari sesi dan jejak yang benar-benar tercatat —
+  /// bukan hitungan terpisah yang bisa melenceng dari yang dilihat pengguna
+  /// di layar lain.
+  static List<Misi> dariKemajuan({
+    required int hariPagi,
+    required int petakDibuka,
+    required int menitMingguIni,
+  }) =>
+      [
+        contoh[0].salin(kemajuan: hariPagi),
+        contoh[1].salin(kemajuan: (menitMingguIni ~/ 40).clamp(0, 3)),
+        contoh[2],
+        contoh[3].salin(kemajuan: petakDibuka),
+      ];
+
   static const contoh = <Misi>[
     Misi(
       id: 'm1',

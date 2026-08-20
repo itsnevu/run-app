@@ -6,19 +6,22 @@ import '../../core/theme/rukun_motion.dart';
 import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
 import '../../core/theme/rukun_typography.dart';
+import '../../data/lokasi.dart';
 import '../../data/repo/repo_lokal.dart';
 import '../../domain/model/kelurahan.dart';
 import '../../domain/model/koordinat.dart';
 import '../../shared/widgets/frosted_card.dart';
 import '../../shared/widgets/gradient_button.dart';
+import '../../shared/widgets/kolom_teks.dart';
+import '../../state/aksi_profil.dart';
 import '../../state/kendali_sesi.dart';
 import '../../state/penyedia.dart';
 import '../peta/peta_rukun.dart';
 
-/// Tahapan onboarding.
+/// Tahapan pembuka.
 enum _Tahap { sambutan, izin, tim, ajakan, merekam, berhasil }
 
-/// **Onboarding 6 menit.** DESIGN.md §7.1
+/// **Pembuka 6 menit.** DESIGN.md §7.1
 ///
 /// Layar paling penting di aplikasi. Data industri: 70–80% pengguna tidak
 /// pernah kembali setelah sesi pertama, dan meraih satu pencapaian di hari
@@ -28,9 +31,11 @@ enum _Tahap { sambutan, izin, tim, ajakan, merekam, berhasil }
 /// - ❌ Tanpa tinggi/berat badan. Selamanya.
 /// - ❌ Tanpa "pilih level kebugaran" — itu yang membuat pemula merasa
 ///      tersisih di detik pertama.
-/// - ❌ Tanpa pendaftaran akun sebelum petak pertama. Nilai dulu, gesekan
-///      belakangan.
-/// - ✅ Kata "lari" tidak muncul sampai setelah petak pertama terbuka.
+/// - ❌ Tanpa akun. Tidak di sini, tidak di mana pun sebelum pengguna
+///      sendiri memintanya. (App Store §5.1.1(v))
+/// - ✅ **Setiap langkah bisa dilewati.** Tombol "Lewati" ada di setiap
+///      layar, dan "Lihat-lihat dulu" ada sejak detik pertama. Pembuka yang
+///      tidak punya pintu keluar bukan sambutan, itu portal.
 class LayarOnboarding extends ConsumerStatefulWidget {
   const LayarOnboarding({super.key, this.onSelesai});
 
@@ -44,12 +49,21 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
   _Tahap _tahap = _Tahap.sambutan;
   Koordinat? _posisi;
   Kelurahan? _kelurahan;
-  bool _izinDitolak = false;
+  StatusIzin? _izin;
+  bool _sibuk = false;
   final _namaKendali = TextEditingController();
 
   /// Titik acuan sebelum izin diberikan — peta tetap tampil (berkabut penuh)
   /// supaya layar pertama tidak kosong.
   static const _acuan = Koordinat(-6.2264, 106.8556);
+
+  /// Tahap yang punya titik kemajuan dan tombol lewati.
+  static const _tahapAwal = [
+    _Tahap.sambutan,
+    _Tahap.izin,
+    _Tahap.tim,
+    _Tahap.ajakan,
+  ];
 
   @override
   void dispose() {
@@ -59,37 +73,55 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
 
   void _ke(_Tahap t) => setState(() => _tahap = t);
 
+  /// Selesai — dengan atau tanpa lokasi, dengan atau tanpa nama.
+  Future<void> _masuk() async {
+    await ref.read(pembukaSelesaiProvider.notifier).tandai();
+    if (!mounted) return;
+    widget.onSelesai?.call();
+  }
+
+  /// "Lihat-lihat dulu" — masuk sekarang juga, tanpa izin dan tanpa akun.
+  Future<void> _lihatDulu() async {
+    await ref.read(aksiProfilProvider).masukSebagaiTamu();
+    if (!mounted) return;
+    widget.onSelesai?.call();
+  }
+
   Future<void> _mintaIzin() async {
-    final lokasi = ref.read(lokasiProvider);
-    final izin = await lokasi.mintaIzin();
+    setState(() => _sibuk = true);
+    final izin = await ref.read(aksiProfilProvider).nyalakanLokasi();
     if (!mounted) return;
 
     if (!izin.bolehMelacak) {
-      setState(() => _izinDitolak = true);
+      setState(() {
+        _izin = izin;
+        _sibuk = false;
+      });
       return;
     }
 
-    final posisi = await lokasi.posisiSekarang();
+    final posisi = await ref.read(lokasiProvider).posisiSekarang() ?? _acuan;
     if (!mounted) return;
 
     setState(() {
-      _posisi = posisi ?? _acuan;
-      _kelurahan = RepoLokal.kelurahanDari(_posisi!);
-      _izinDitolak = false;
+      _posisi = posisi;
+      _kelurahan = RepoLokal.kelurahanDari(posisi);
+      _izin = izin;
+      _sibuk = false;
     });
     _ke(_Tahap.tim);
   }
 
-  Future<void> _mulaiJalan() async {
-    // Profil dibuat sekarang supaya lintasan bisa dicatat — tapi tanpa satu
-    // pun formulir. Nama ditanyakan nanti, setelah petak pertama terbuka.
-    final repo = ref.read(repoProvider);
-    await repo.simpanProfil(Profil(
-      id: 'saya',
-      nama: 'Kamu',
-      kelurahanId: _kelurahan!.id,
-    ));
+  Future<void> _bukaPengaturan() async {
+    final lokasi = ref.read(lokasiProvider);
+    if (_izin == StatusIzin.layananMati) {
+      await lokasi.bukaPengaturanLokasi();
+    } else {
+      await lokasi.bukaPengaturanAplikasi();
+    }
+  }
 
+  Future<void> _mulaiJalan() async {
     final berhasil = await ref.read(kendaliSesiProvider.notifier).mulai();
     if (!mounted) return;
     if (berhasil) _ke(_Tahap.merekam);
@@ -104,21 +136,17 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
 
   Future<void> _simpanNama() async {
     final nama = _namaKendali.text.trim();
-    final repo = ref.read(repoProvider);
-    await repo.simpanProfil(Profil(
-      id: 'saya',
-      nama: nama.isEmpty ? 'Kamu' : nama,
-      kelurahanId: _kelurahan!.id,
-    ));
-    ref.invalidate(profilProvider);
-    if (!mounted) return;
-    widget.onSelesai?.call();
+    if (nama.isNotEmpty) {
+      await ref.read(aksiProfilProvider).gantiNama(nama);
+    }
+    await _masuk();
   }
 
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(kendaliSesiProvider);
     final pusat = _posisi ?? _acuan;
+    final berkabut = _tahap == _Tahap.sambutan || _tahap == _Tahap.izin;
 
     return Scaffold(
       body: Stack(
@@ -128,19 +156,53 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
             child: PetaRukun(
               pusat: pusat,
               zoom: 16,
-              kabutPenuh: _tahap == _Tahap.sambutan || _tahap == _Tahap.izin,
+              kabutPenuh: berkabut,
               jejak: status.petakSesi,
               tampilkanTitikPengguna: _tahap != _Tahap.sambutan,
             ),
           ),
+
+          // Peredup dari bawah: teks tetap terbaca di atas peta apa pun,
+          // tanpa harus menutupnya dengan panel penuh.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0.0, 0.45, 1.0],
+                    colors: [
+                      context.warna.surface.withValues(alpha: 0.0),
+                      context.warna.surface.withValues(alpha: 0.35),
+                      context.warna.surface.withValues(alpha: 0.85),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           Positioned.fill(
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(Jarak.tepiLayar),
-                child: AnimatedSwitcher(
-                  duration: Gerak.halus,
-                  switchInCurve: Gerak.halusKurva,
-                  child: _isi(status),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Kepala(
+                      langkah: _tahapAwal.indexOf(_tahap),
+                      jumlah: _tahapAwal.length,
+                      onLewati: _tahapAwal.contains(_tahap) ? _lewati : null,
+                    ),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: Gerak.halus,
+                        switchInCurve: Gerak.halusKurva,
+                        child: _isi(status),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -150,15 +212,24 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
     );
   }
 
+  /// Lewati: kalau kelurahan sudah ketahuan, ia ikut terbawa; kalau belum,
+  /// pengguna masuk sebagai tamu tanpa lokasi.
+  Future<void> _lewati() =>
+      _kelurahan == null ? _lihatDulu() : _masuk();
+
   Widget _isi(StatusSesi status) => switch (_tahap) {
         _Tahap.sambutan => _Sambutan(
             key: const ValueKey('sambutan'),
             onLanjut: () => _ke(_Tahap.izin),
+            onLihatDulu: _lihatDulu,
           ),
         _Tahap.izin => _Izin(
             key: const ValueKey('izin'),
-            ditolak: _izinDitolak,
+            izin: _izin,
+            sibuk: _sibuk,
             onIzinkan: _mintaIzin,
+            onPengaturan: _bukaPengaturan,
+            onNanti: _lihatDulu,
           ),
         _Tahap.tim => _Tim(
             key: const ValueKey('tim'),
@@ -168,28 +239,88 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
         _Tahap.ajakan => _Ajakan(
             key: const ValueKey('ajakan'),
             onMulai: _mulaiJalan,
+            onNanti: _masuk,
           ),
         _Tahap.merekam => _Merekam(
             key: const ValueKey('merekam'),
             status: status,
-            kelurahan: _kelurahan!,
             onSelesai: _selesaikanJalan,
           ),
         _Tahap.berhasil => _Berhasil(
             key: const ValueKey('berhasil'),
             jumlahPetak: status.petakSesi.length,
-            kelurahan: _kelurahan!,
             kendali: _namaKendali,
             onSelesai: _simpanNama,
           ),
       };
 }
 
+/// Titik kemajuan di kiri, jalan keluar di kanan.
+class _Kepala extends StatelessWidget {
+  const _Kepala({
+    required this.langkah,
+    required this.jumlah,
+    this.onLewati,
+  });
+
+  final int langkah;
+  final int jumlah;
+  final VoidCallback? onLewati;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: Row(
+        children: [
+          if (langkah >= 0)
+            for (var i = 0; i < jumlah; i++)
+              AnimatedContainer(
+                duration: Gerak.sigap,
+                curve: Gerak.sigapKurva,
+                margin: const EdgeInsets.only(right: Jarak.xs),
+                width: i == langkah ? 20 : 6,
+                height: 6,
+                decoration: ShapeDecoration(
+                  gradient: i == langkah ? context.gradients.terang : null,
+                  color: i == langkah
+                      ? null
+                      : context.teksTersier.withValues(alpha: 0.35),
+                  shape: const StadiumBorder(),
+                ),
+              ),
+          const Spacer(),
+          if (onLewati != null)
+            GestureDetector(
+              onTap: onLewati,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Jarak.sm),
+                child: Text(
+                  'Lewati',
+                  style: RukunText.subhead.copyWith(
+                    color: context.teksSekunder,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── 0:00 Sambutan ─────────────────────────────────────────────────
 class _Sambutan extends StatelessWidget {
-  const _Sambutan({super.key, required this.onLanjut});
+  const _Sambutan({
+    super.key,
+    required this.onLanjut,
+    required this.onLihatDulu,
+  });
 
   final VoidCallback onLanjut;
+  final VoidCallback onLihatDulu;
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +340,13 @@ class _Sambutan extends StatelessWidget {
         ),
         const SizedBox(height: Jarak.xxxl),
         TombolRukun(label: 'Mulai', onTap: onLanjut),
-        const SizedBox(height: Jarak.lg),
+        const SizedBox(height: Jarak.sm),
+        // Pintu masuk tanpa syarat apa pun — tanpa izin, tanpa akun.
+        TombolRukun(
+          label: 'Lihat-lihat dulu',
+          varian: VarianTombol.hantu,
+          onTap: onLihatDulu,
+        ),
       ],
     );
   }
@@ -217,10 +354,34 @@ class _Sambutan extends StatelessWidget {
 
 // ── 0:15 Izin lokasi ──────────────────────────────────────────────
 class _Izin extends StatelessWidget {
-  const _Izin({super.key, required this.ditolak, required this.onIzinkan});
+  const _Izin({
+    super.key,
+    required this.izin,
+    required this.sibuk,
+    required this.onIzinkan,
+    required this.onPengaturan,
+    required this.onNanti,
+  });
 
-  final bool ditolak;
+  final StatusIzin? izin;
+  final bool sibuk;
   final VoidCallback onIzinkan;
+  final VoidCallback onPengaturan;
+  final VoidCallback onNanti;
+
+  bool get _buntu =>
+      izin == StatusIzin.ditolakPermanen || izin == StatusIzin.layananMati;
+
+  String get _pesanGagal => switch (izin) {
+        StatusIzin.layananMati =>
+          'Layanan lokasi di HP kamu lagi mati. Nyalakan dulu ya.',
+        StatusIzin.ditolakPermanen =>
+          'Izin lokasinya dimatikan permanen. Bisa dinyalakan lagi lewat '
+              'Pengaturan.',
+        StatusIzin.ditolak =>
+          'Belum diizinkan. Kamu tetap bisa masuk dan lihat-lihat dulu.',
+        _ => '',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -243,11 +404,10 @@ class _Izin extends StatelessWidget {
                 'nggak ke tetangga, nggak ke publik.',
                 style: RukunText.body.copyWith(color: context.teksSekunder),
               ),
-              if (ditolak) ...[
+              if (_pesanGagal.isNotEmpty) ...[
                 const SizedBox(height: Jarak.lg),
                 Text(
-                  'Tanpa izin lokasi, Rukun nggak bisa jalan. '
-                  'Kamu bisa mengaktifkannya di Pengaturan.',
+                  _pesanGagal,
                   style: RukunText.subhead.copyWith(
                     color: context.gradients.hangus.colors.first,
                   ),
@@ -258,10 +418,18 @@ class _Izin extends StatelessWidget {
         ),
         const SizedBox(height: Jarak.xl),
         TombolRukun(
-          label: ditolak ? 'Coba lagi' : 'Izinkan lokasi',
-          onTap: onIzinkan,
+          label: sibuk
+              ? 'Sebentar...'
+              : (_buntu ? 'Buka Pengaturan' : 'Izinkan lokasi'),
+          onTap: sibuk ? null : (_buntu ? onPengaturan : onIzinkan),
         ),
-        const SizedBox(height: Jarak.lg),
+        const SizedBox(height: Jarak.sm),
+        // Menunda izin tidak pernah jadi jalan buntu.
+        TombolRukun(
+          label: 'Nanti aja',
+          varian: VarianTombol.hantu,
+          onTap: onNanti,
+        ),
       ],
     );
   }
@@ -320,9 +488,10 @@ class _Tim extends StatelessWidget {
 
 // ── 0:45 Ajakan pertama ───────────────────────────────────────────
 class _Ajakan extends StatelessWidget {
-  const _Ajakan({super.key, required this.onMulai});
+  const _Ajakan({super.key, required this.onMulai, required this.onNanti});
 
   final VoidCallback onMulai;
+  final VoidCallback onNanti;
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +522,12 @@ class _Ajakan extends StatelessWidget {
           ikon: Icons.directions_walk_rounded,
           onTap: onMulai,
         ),
-        const SizedBox(height: Jarak.lg),
+        const SizedBox(height: Jarak.sm),
+        TombolRukun(
+          label: 'Nanti aja',
+          varian: VarianTombol.hantu,
+          onTap: onNanti,
+        ),
       ],
     );
   }
@@ -364,12 +538,10 @@ class _Merekam extends StatelessWidget {
   const _Merekam({
     super.key,
     required this.status,
-    required this.kelurahan,
     required this.onSelesai,
   });
 
   final StatusSesi status;
-  final Kelurahan kelurahan;
   final VoidCallback onSelesai;
 
   @override
@@ -414,7 +586,7 @@ class _Merekam extends StatelessWidget {
                     style: RukunText.angkaSedang,
                   ),
                   Text(
-                    jumlah == 1 ? 'petak terbuka' : 'petak terbuka',
+                    'petak terbuka',
                     style:
                         RukunText.caption.copyWith(color: context.teksSekunder),
                   ),
@@ -453,82 +625,80 @@ class _Berhasil extends StatelessWidget {
   const _Berhasil({
     super.key,
     required this.jumlahPetak,
-    required this.kelurahan,
     required this.kendali,
     required this.onSelesai,
   });
 
   final int jumlahPetak;
-  final Kelurahan kelurahan;
   final TextEditingController kendali;
   final VoidCallback onSelesai;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Spacer(),
-        KartuBuram(
-          buram: Buram.tebal,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  TeksGradient(
-                    '+$jumlahPetak',
-                    gradient: context.gradients.fajar,
-                    style: RukunText.angkaBesar,
-                  ),
-                  const SizedBox(width: Jarak.sm),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text('petak', style: RukunText.judul3),
-                  ),
-                ],
-              ),
-              const SizedBox(height: Jarak.sm),
-              Text(
-                'Petak ini milik kamu selamanya — nggak bisa direbut siapa pun.',
-                style: RukunText.subhead.copyWith(color: context.teksSekunder),
-              ),
-              const SizedBox(height: Jarak.xl),
-              const Divider(),
-              const SizedBox(height: Jarak.xl),
-              // Nama diminta SETELAH nilai diberikan, bukan sebelumnya.
-              Text('Tetanggamu bakal lihat kamu sebagai siapa?',
-                  style: RukunText.headline),
-              const SizedBox(height: Jarak.md),
-              TextField(
-                controller: kendali,
-                textCapitalization: TextCapitalization.words,
-                style: RukunText.body,
-                decoration: InputDecoration(
-                  hintText: 'Nama panggilan',
-                  hintStyle:
-                      RukunText.body.copyWith(color: context.teksTersier),
-                  filled: true,
-                  fillColor: context.modeGelap
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.04),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(Sudut.sm),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: Jarak.lg, vertical: Jarak.md),
+    return SingleChildScrollView(
+      reverse: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: Jarak.xxxl),
+          KartuBuram(
+            buram: Buram.tebal,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    TeksGradient(
+                      '+$jumlahPetak',
+                      gradient: context.gradients.fajar,
+                      style: RukunText.angkaBesar,
+                    ),
+                    const SizedBox(width: Jarak.sm),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text('petak', style: RukunText.judul3),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: Jarak.sm),
+                Text(
+                  'Petak ini milik kamu selamanya — nggak bisa direbut '
+                  'siapa pun.',
+                  style:
+                      RukunText.subhead.copyWith(color: context.teksSekunder),
+                ),
+                const SizedBox(height: Jarak.xl),
+                const Divider(),
+                const SizedBox(height: Jarak.xl),
+                // Nama diminta SETELAH nilai diberikan, bukan sebelumnya —
+                // dan tetap boleh dikosongkan.
+                Text('Tetanggamu bakal lihat kamu sebagai siapa?',
+                    style: RukunText.headline),
+                const SizedBox(height: Jarak.md),
+                KolomTeksRukun(
+                  kendali: kendali,
+                  petunjuk: 'Nama panggilan (boleh dilewati)',
+                  kapitalisasi: TextCapitalization.words,
+                  aksi: TextInputAction.done,
+                  onKirim: (_) => onSelesai(),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: Jarak.xl),
-        TombolRukun(label: 'Masuk ke peta', onTap: onSelesai),
-        const SizedBox(height: Jarak.lg),
-      ],
+          const SizedBox(height: Jarak.xl),
+          TombolRukun(label: 'Masuk ke peta', onTap: onSelesai),
+          const SizedBox(height: Jarak.md),
+          Text(
+            'Mau progresmu aman kalau ganti HP? Bikin akun kapan aja '
+            'lewat tab Aku — nggak wajib.',
+            textAlign: TextAlign.center,
+            style: RukunText.footnote.copyWith(color: context.teksTersier),
+          ),
+          const SizedBox(height: Jarak.lg),
+        ],
+      ),
     );
   }
 }

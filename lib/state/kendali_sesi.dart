@@ -8,6 +8,7 @@ import '../domain/aturan/zona_privat.dart';
 import '../domain/grid/grid_petak.dart';
 import '../domain/model/pelintas.dart';
 import '../domain/model/sesi.dart';
+import '../data/checkpoint_sesi.dart';
 import '../data/lokasi.dart';
 import '../data/repo/repo_rukun.dart';
 import 'penyedia.dart';
@@ -98,6 +99,15 @@ class KendaliSesi extends Notifier<StatusSesi> {
   StreamSubscription<SampelLokasi>? _langganan;
   Timer? _detak;
 
+  /// Sampel sejak checkpoint terakhir. Menulis tiap sampel berarti menulis
+  /// ke penyimpanan tiap beberapa detik sepanjang sesi; menulis tiap lima
+  /// sampel (~30 detik berjalan kaki) menahan kehilangan maksimum di angka
+  /// yang tidak terasa, dengan biaya yang jauh lebih murah.
+  int _sejakCheckpoint = 0;
+  static const _sampelPerCheckpoint = 5;
+
+  CheckpointSesi get _checkpoint => CheckpointSesi(ref.read(prefProvider));
+
   /// Zona privat pengguna. Petak di dalamnya tidak pernah jadi klaim.
   ///
   /// Dimuat dari penyimpanan setiap sesi dimulai, dan dibuat otomatis setelah
@@ -129,6 +139,8 @@ class KendaliSesi extends Notifier<StatusSesi> {
     zonaPrivat = await ref.read(repoProvider).muatZonaPrivat();
 
     final mulai = waktu();
+    _sejakCheckpoint = 0;
+    await _checkpoint.hapus();
     state = StatusSesi(
       sesi: Sesi(id: 's-${mulai.microsecondsSinceEpoch}', mulai: mulai),
     );
@@ -176,7 +188,33 @@ class KendaliSesi extends Notifier<StatusSesi> {
       petakSesi: petakSekarang,
       petakBaru: baru,
     );
+
+    if (++_sejakCheckpoint >= _sampelPerCheckpoint) {
+      _sejakCheckpoint = 0;
+      unawaited(_checkpoint.simpan(sesi));
+    }
   }
+
+  /// Sesi yang belum sempat diselesaikan — proses dibunuh OS di tengah lari,
+  /// atau aplikasi digeser dari daftar tugas.
+  Sesi? sesiTertunda() => _checkpoint.muat();
+
+  /// Menyelesaikan sesi tertunda memakai jalur simpan yang sama.
+  ///
+  /// Waktu selesai diambil dari sampel GPS terakhir, bukan dari sekarang:
+  /// sesi yang terputus jam 6 pagi lalu dipulihkan jam 9 malam bukan sesi
+  /// 15 jam.
+  Future<HasilSesi?> selesaikanTertunda() async {
+    final tertunda = _checkpoint.muat();
+    if (tertunda == null) return null;
+
+    final akhir = tertunda.salin(selesai: tertunda.titik.last.waktu);
+    zonaPrivat = await ref.read(repoProvider).muatZonaPrivat();
+    return _simpanHasil(akhir, akhir.titik.last.waktu);
+  }
+
+  /// Membuang sesi tertunda tanpa menyimpannya.
+  Future<void> buangTertunda() => _checkpoint.hapus();
 
   /// Menandai animasi penyingkapan sudah tampil.
   void bersihkanPetakBaru() {
@@ -193,6 +231,12 @@ class KendaliSesi extends Notifier<StatusSesi> {
     final waktu = (jam ?? DateTime.now)();
     final akhir = sesi.salin(selesai: waktu);
 
+    return _simpanHasil(akhir, waktu);
+  }
+
+  /// Jalur simpan tunggal — dipakai `selesai()` maupun pemulihan sesi
+  /// tertunda, supaya keduanya tidak pernah berbeda perilaku.
+  Future<HasilSesi> _simpanHasil(Sesi akhir, DateTime waktu) async {
     final repo = ref.read(repoProvider);
     final grid = ref.read(gridProvider);
 
@@ -231,6 +275,11 @@ class KendaliSesi extends Notifier<StatusSesi> {
       ref.invalidate(hariAktifProvider);
       state = const StatusSesi();
     }
+
+    // Checkpoint hanya dibuang kalau datanya benar-benar sudah mendarat.
+    // Kalau gagal, sesi tetap tersimpan di perangkat dan bisa dicoba lagi
+    // nanti — lebih baik menawarkan pemulihan daripada menghapus diam-diam.
+    if (tersimpan) await _checkpoint.hapus();
 
     return HasilSesi(
       sesi: akhir,
@@ -295,6 +344,7 @@ class KendaliSesi extends Notifier<StatusSesi> {
   /// Membatalkan sesi tanpa menyimpan.
   void batal() {
     _bersihkan();
+    unawaited(_checkpoint.hapus());
     state = const StatusSesi();
   }
 }

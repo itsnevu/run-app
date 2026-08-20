@@ -14,6 +14,19 @@ import '../../domain/model/sesi.dart';
 /// jadi produksi tetap membutuhkan server. Antarmuka ini adalah titik
 /// sambungannya: `RepoSupabase`/`RepoFirebase` cukup mengimplementasikan
 /// kontrak yang sama tanpa mengubah satu baris pun di lapisan fitur.
+/// Kontribusi satu anggota tim dalam seminggu.
+class KontribusiAnggota {
+  const KontribusiAnggota({
+    required this.nama,
+    required this.menitBergerak,
+    this.kamu = false,
+  });
+
+  final String nama;
+  final int menitBergerak;
+  final bool kamu;
+}
+
 abstract interface class RepoRukun {
   /// Profil pengguna, atau null bila belum onboarding.
   Future<Profil?> muatProfil();
@@ -45,6 +58,17 @@ abstract interface class RepoRukun {
   Future<void> simpanSesi(Sesi sesi);
 
   Future<List<Sesi>> muatSesi();
+
+  /// Kontribusi anggota tim minggu ini, diukur **menit bergerak**.
+  ///
+  /// Bukan jarak: itulah yang membuat pejalan kaki dan pelari bercampur
+  /// secara alami di papan yang sama.
+  Future<List<KontribusiAnggota>> kontribusiTim(String kelurahanId);
+
+  /// Petak milik pengguna yang akan hangus dalam [ambang].
+  Future<Set<IdPetak>> petakAkanHangus({
+    Duration ambang = const Duration(hours: 24),
+  });
 
   /// Zona privat pengguna — biasanya rumah.
   ///

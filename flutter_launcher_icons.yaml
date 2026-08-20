@@ -1,0 +1,7 @@
+flutter_launcher_icons:
+  image_path: "aset/ikon.png"
+  android: "launcher_icon"
+  adaptive_icon_background: "#2F7BFF"
+  adaptive_icon_foreground: "aset/ikon_depan.png"
+  ios: true
+  remove_alpha_ios: true

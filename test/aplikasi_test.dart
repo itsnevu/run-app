@@ -156,14 +156,19 @@ void main() {
       expect(find.text('Yang bergerak minggu ini'), findsOneWidget);
     });
 
-    testWidgets('pindah ke Aku menampilkan konsistensi, bukan kecepatan',
+    testWidgets('pindah ke Aku menampilkan kehadiran, bukan kecepatan',
         (tester) async {
       await keCangkang(tester);
       await tester.tap(find.text('Aku').first);
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.textContaining('dari 7 hari'), findsOneWidget);
-      expect(find.textContaining('Konsistensi'), findsOneWidget);
+      // Satu-satunya angka publik: kehadiran.
+      expect(find.text('HARI HADIR'), findsOneWidget);
+      expect(find.textContaining('dilihat orang lain'), findsOneWidget);
+
+      // Dan jejak pribadi, yang justru ditandai privat.
+      expect(find.text('PETAK DIBUKA'), findsOneWidget);
+      expect(find.textContaining('Privat'), findsWidgets);
     });
 
     testWidgets('pindah ke Misi menampilkan jalur pemula', (tester) async {

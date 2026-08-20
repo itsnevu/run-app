@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/theme/rukun_colors.dart';
+import '../../core/theme/rukun_motion.dart';
 import '../../core/theme/rukun_theme.dart';
 import '../../domain/grid/grid_heks.dart';
 import '../../domain/grid/grid_petak.dart';
@@ -21,7 +22,7 @@ extension _KeLatLng on Koordinat {
 ///
 /// Peta adalah kanvas, bukan bintang: ubin didesaturasi supaya lapisan
 /// permainan yang menonjol.
-class PetaRukun extends StatelessWidget {
+class PetaRukun extends StatefulWidget {
   const PetaRukun({
     super.key,
     required this.pusat,
@@ -35,6 +36,8 @@ class PetaRukun extends StatelessWidget {
     this.kabutPenuh = false,
     this.kendali,
     this.tampilkanTitikPengguna = true,
+    this.petakHangus = const {},
+    this.ikuti = true,
   });
 
   /// Titik tengah peta — biasanya posisi pengguna.
@@ -64,20 +67,123 @@ class PetaRukun extends StatelessWidget {
   final MapController? kendali;
   final bool tampilkanTitikPengguna;
 
+  /// Petak yang akan kedaluwarsa dalam 24 jam. Tepinya berdenyut.
+  ///
+  /// Denyut sengaja dibatasi ke lapisan ini saja dan hanya
+  /// [maksHangusBerdenyut] petak: menganimasikan poligon berarti membangun
+  /// ulang lapisannya tiap frame, dan anggaran 60fps di Android kelas
+  /// menengah tidak menyisakan banyak ruang. Sisanya tetap ditandai,
+  /// hanya tidak berdenyut.
+  final Set<IdPetak> petakHangus;
+
+  /// Peta bergeser mengikuti [pusat] selama pengguna belum menggeser sendiri.
+  ///
+  /// Tanpa ini `initialCenter` hanya berlaku sekali: selama sesi 45 menit peta
+  /// terkunci di titik start, titik biru diam di tengah layar sementara dunia
+  /// nyata bergerak, dan kabut tertinggal di belakang.
+  final bool ikuti;
+
+  static const maksHangusBerdenyut = 24;
+
+  /// Batas cincin kabut saat peta diperkecil.
+  ///
+  /// 12 cincin = 469 poligon, masih di bawah anggaran 500 poligon pada 60fps
+  /// (DESIGN.md §10.4).
+  static const maksRadiusPetak = 12;
+
+  @override
+  State<PetaRukun> createState() => _PetaRukunState();
+}
+
+class _PetaRukunState extends State<PetaRukun> {
+  MapController? _milikSendiri;
+  MapController get _kendali =>
+      widget.kendali ?? (_milikSendiri ??= MapController());
+
+  /// Petak tempat kamera berada. Kabut dihitung dari sini, bukan dari posisi
+  /// pengguna — kalau tidak, menggeser peta sedikit saja memperlihatkan peta
+  /// telanjang tanpa kabut di luar cincin.
+  IdPetak? _petakKamera;
+  double? _zoomKamera;
+
+  /// Mati begitu pengguna menggeser peta sendiri. Merebut kembali kendali
+  /// kamera dari tangan pengguna adalah cara tercepat membuat peta terasa
+  /// melawan.
+  bool _ikuti = true;
+
+  @override
+  void didUpdateWidget(PetaRukun lama) {
+    super.didUpdateWidget(lama);
+    if (!widget.ikuti) return;
+    if (!_ikuti) return;
+    if (widget.pusat == lama.pusat) return;
+
+    // Pindah kamera setelah frame ini selesai — `move()` di tengah build
+    // memicu rebuild bersarang.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _kendali.move(widget.pusat.latLng, _zoomKamera ?? widget.zoom);
+    });
+  }
+
+  @override
+  void dispose() {
+    _milikSendiri?.dispose();
+    super.dispose();
+  }
+
+  /// Radius cincin kabut, melebar saat peta diperkecil.
+  int get _radiusEfektif {
+    final zoom = _zoomKamera ?? widget.zoom;
+    final selisih = (widget.zoom - zoom).round();
+    if (selisih <= 0) return widget.radiusPetak;
+    return (widget.radiusPetak + selisih * 3)
+        .clamp(widget.radiusPetak, PetaRukun.maksRadiusPetak);
+  }
+
+  void _kameraBergerak(MapCamera kamera, bool adaGerakan) {
+    if (adaGerakan && _ikuti) _ikuti = false;
+
+    final petak = widget.grid.petakDi(
+      Koordinat(kamera.center.latitude, kamera.center.longitude),
+    );
+    final zoomBerubah = (_zoomKamera ?? widget.zoom) - kamera.zoom;
+
+    // Hanya hitung ulang saat kamera melewati batas petak (~132 m) atau zoom
+    // berubah berarti. Tanpa ambang ini, kabut dibangun ulang tiap frame
+    // sepanjang gerakan jari.
+    if (petak == _petakKamera && zoomBerubah.abs() < 0.5) return;
+
+    setState(() {
+      _petakKamera = petak;
+      _zoomKamera = kamera.zoom;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final gelap = context.modeGelap;
-    final petakTengah = grid.petakDi(pusat);
-    final terlihat = grid.cincin(petakTengah, radiusPetak);
+    final grid = widget.grid;
+    final pusat = widget.pusat;
+    final petakHangus = widget.petakHangus;
+    final zoom = widget.zoom;
+    final kabutPenuh = widget.kabutPenuh;
+    final tampilkanUbin = widget.tampilkanUbin;
+    final tampilkanTitikPengguna = widget.tampilkanTitikPengguna;
+
+    // Kabut mengikuti kamera; titik pengguna tetap di posisi sebenarnya.
+    final petakTengah = _petakKamera ?? grid.petakDi(pusat);
+    final terlihat = grid.cincin(petakTengah, _radiusEfektif);
 
     return Stack(
       children: [
         Positioned.fill(
           child: FlutterMap(
-            mapController: kendali,
+            mapController: _kendali,
             options: MapOptions(
               initialCenter: pusat.latLng,
               initialZoom: zoom,
+              onPositionChanged: _kameraBergerak,
               backgroundColor:
                   gelap ? RukunColors.latarGelapA : RukunColors.jalanTerang,
               interactionOptions: const InteractionOptions(
@@ -88,6 +194,8 @@ class PetaRukun extends StatelessWidget {
               if (tampilkanUbin) _lapisanUbin(gelap),
               _lapisanWilayah(),
               if (!kabutPenuh) _lapisanKabut(terlihat),
+              if (petakHangus.isNotEmpty)
+                _LapisanHangus(petak: petakHangus, grid: grid),
               if (tampilkanTitikPengguna) _lapisanPengguna(context),
             ],
           ),
@@ -127,6 +235,7 @@ class PetaRukun extends StatelessWidget {
   /// (MapTiler, Stadia, Protomaps) atau host ubin sendiri.
   /// Lihat: https://operations.osmfoundation.org/policies/tiles
   Widget _lapisanUbin(bool gelap) {
+    final penyediaUbin = widget.penyediaUbin;
     return ColorFiltered(
       colorFilter: ColorFilter.matrix(_matriksDesaturasi(gelap ? 0.15 : 0.35)),
       child: TileLayer(
@@ -140,6 +249,8 @@ class PetaRukun extends StatelessWidget {
 
   /// Wilayah tim — isian 28%, tepi 90% tebal 2. DESIGN.md §2.5
   Widget _lapisanWilayah() {
+    final grid = widget.grid;
+    final wilayah = widget.wilayah;
     return PolygonLayer(
       polygons: [
         for (final entri in wilayah.entries)
@@ -157,8 +268,15 @@ class PetaRukun extends StatelessWidget {
 
   /// Petak yang belum terbuka. Isian kabut 55%.
   Widget _lapisanKabut(List<IdPetak> terlihat) {
+    final grid = widget.grid;
+    final jejak = widget.jejak;
+    final wilayah = widget.wilayah;
+    final petakHangus = widget.petakHangus;
     final berkabut = terlihat
-        .where((p) => !jejak.contains(p) && !wilayah.containsKey(p))
+        .where((p) =>
+            !jejak.contains(p) &&
+            !wilayah.containsKey(p) &&
+            !petakHangus.contains(p))
         .toList();
 
     return PolygonLayer(
@@ -181,7 +299,7 @@ class PetaRukun extends StatelessWidget {
     return MarkerLayer(
       markers: [
         Marker(
-          point: pusat.latLng,
+          point: widget.pusat.latLng,
           width: 28,
           height: 28,
           child: DecoratedBox(
@@ -213,5 +331,72 @@ class PetaRukun extends StatelessWidget {
       lr * n, lg * n, lb * n + s, 0, 0,
       0, 0, 0, 1, 0,
     ];
+  }
+}
+
+
+/// Tepi berdenyut untuk petak yang akan hangus. DESIGN.md §6.5
+///
+/// Ini mekanisme urgensi Rukun — dan sengaja tidak kompetitif: yang mendesak
+/// adalah waktunya, bukan orang lain yang mengejar.
+class _LapisanHangus extends StatefulWidget {
+  const _LapisanHangus({required this.petak, required this.grid});
+
+  final Set<IdPetak> petak;
+  final GridPetak grid;
+
+  @override
+  State<_LapisanHangus> createState() => _LapisanHangusState();
+}
+
+class _LapisanHangusState extends State<_LapisanHangus>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _denyut = AnimationController(
+    vsync: this,
+    duration: Gerak.denyutHangus,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // reduceMotion: tanda tetap ada, denyutnya yang hilang.
+    if (Gerak.kurangiGerak(context)) {
+      _denyut.stop();
+      _denyut.value = 0.5;
+    } else if (!_denyut.isAnimating) {
+      _denyut.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _denyut.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tampil = widget.petak.take(PetaRukun.maksHangusBerdenyut).toList();
+
+    return AnimatedBuilder(
+      animation: _denyut,
+      builder: (context, _) {
+        final t = _denyut.value;
+        return PolygonLayer(
+          polygons: [
+            for (final p in tampil)
+              Polygon(
+                points: [
+                  for (final k in widget.grid.batas(p)) k.latLng,
+                ],
+                color: RukunColors.hangusA.withValues(alpha: 0.10 + 0.10 * t),
+                borderColor:
+                    RukunColors.hangusA.withValues(alpha: 0.55 + 0.45 * t),
+                borderStrokeWidth: 2 + t,
+              ),
+          ],
+        );
+      },
+    );
   }
 }

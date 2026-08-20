@@ -73,9 +73,10 @@ class RepoSupabase implements RepoRukun {
 
   @override
   Future<List<Kelurahan>> muatSemuaKelurahan() async {
-    final baris = await _klien
-        .from('kelurahan_ringkas')
-        .select('id, nama, warna, jumlah_anggota, petak_dikuasai');
+    // Lewat fungsi, bukan view. View `kelurahan_ringkas` mengagregasi
+    // `lintasan`, dan view yang bisa dibaca klien berarti RLS tabel itu
+    // dilewati — lihat supabase/migrations/0004_penguatan.sql.
+    final baris = await _klien.rpc<List<dynamic>>('ringkas_kelurahan');
 
     return [
       for (final b in baris)
@@ -157,7 +158,12 @@ class RepoSupabase implements RepoRukun {
               kamu: b['profil_id'] == uid,
             ),
             timId: b['kelurahan_id'] as String,
-            waktu: DateTime.parse(b['waktu_pertama'] as String),
+            // Jendela 7 hari dihitung server dari `waktu_terakhir`; klien
+            // wajib memakai kolom yang sama. Memakai `waktu_pertama` membuat
+            // warga lama yang baru lewat kemarin terbuang diam-diam di sisi
+            // klien, dan momen "kamu yang melengkapi" tidak pernah menyala
+            // untuk mereka.
+            waktu: DateTime.parse(b['waktu_terakhir'] as String),
           ),
       ];
     }
@@ -172,7 +178,13 @@ class RepoSupabase implements RepoRukun {
     // waktu, tidak pernah menambah hitungan orang.
     await _klien.rpc<void>(
       'catat_lintasan',
-      params: {'p_petak_kode': [for (final p in petak) p.kode]},
+      params: {
+        'p_petak_kode': [for (final p in petak) p.kode],
+        // Sesi yang tertahan offline lalu diunggah tiga hari kemudian tidak
+        // boleh ter-stempel waktu unggah — itu menggeser jendela 7 hari
+        // diam-diam. Server tetap menjepitnya ke rentang yang masuk akal.
+        'p_waktu': waktu.toUtc().toIso8601String(),
+      },
     );
   }
 
@@ -230,6 +242,57 @@ class RepoSupabase implements RepoRukun {
           selesai: DateTime.parse(b['selesai'] as String),
         ),
     ];
+  }
+
+  // ── Kontribusi & petak hangus ───────────────────────────────────
+  @override
+  Future<List<KontribusiAnggota>> kontribusiTim(String kelurahanId) async {
+    final uid = _uid;
+    final batas = _jam().subtract(const Duration(days: 7));
+
+    // Menit bergerak per anggota — bukan jarak, bukan kecepatan.
+    final baris = await _klien
+        .from('sesi')
+        .select('profil_id, menit_bergerak, profil!inner(nama, kelurahan_id)')
+        .eq('profil.kelurahan_id', kelurahanId)
+        .gt('mulai', batas.toIso8601String());
+
+    final total = <String, ({String nama, int menit})>{};
+    for (final b in baris) {
+      final id = b['profil_id'] as String;
+      final nama = (b['profil'] as Map)['nama'] as String;
+      final menit = (b['menit_bergerak'] as num).toInt();
+      final lama = total[id];
+      total[id] = (nama: nama, menit: (lama?.menit ?? 0) + menit);
+    }
+
+    return [
+      for (final e in total.entries)
+        KontribusiAnggota(
+          nama: e.value.nama,
+          menitBergerak: e.value.menit,
+          kamu: e.key == uid,
+        ),
+    ]..sort((a, b) => b.menitBergerak.compareTo(a.menitBergerak));
+  }
+
+  @override
+  Future<Set<IdPetak>> petakAkanHangus({
+    Duration ambang = const Duration(hours: 24),
+  }) async {
+    final uid = _uid;
+    if (uid == null) return {};
+
+    final batasHangus = _jam().subtract(const Duration(days: 7)).add(ambang);
+    final baris = await _klien
+        .from('lintasan')
+        .select('petak_kode, waktu_terakhir')
+        .eq('profil_id', uid)
+        .lt('waktu_terakhir', batasHangus.toIso8601String());
+
+    return {
+      for (final b in baris) IdPetak.dariKode(b['petak_kode'] as String),
+    };
   }
 
   // ── Zona privat ─────────────────────────────────────────────────

@@ -47,34 +47,37 @@ class BilahTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Jarak.lg, 0, Jarak.lg, Jarak.md),
-      child: Stack(
-        alignment: Alignment.topCenter,
-        clipBehavior: Clip.none,
-        children: [
-          KartuBuram(
-            buram: Buram.tebal,
-            radius: Sudut.penuh,
-            padding: const EdgeInsets.symmetric(vertical: Jarak.md),
-            child: Row(
-              children: [
-                _slot(context, 0),
-                _slot(context, 1),
-                const SizedBox(width: 68), // ruang untuk tombol rekam
-                _slot(context, 2),
-                _slot(context, 3),
-              ],
+    // SafeArea sendiri, bukan titipan Scaffold: dengan `extendBody: true`
+    // bilah ini melayang di atas peta, dan tanpa penyesuaian ia menabrak
+    // indikator home iPhone.
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Jarak.lg, 0, Jarak.lg, Jarak.sm),
+        child: Stack(
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.none,
+          children: [
+            KartuBuram(
+              buram: Buram.tebal,
+              radius: Sudut.penuh,
+              padding: const EdgeInsets.symmetric(vertical: Jarak.md),
+              child: Row(
+                children: [
+                  _slot(context, 0),
+                  _slot(context, 1),
+                  const SizedBox(width: 68), // ruang untuk tombol rekam
+                  _slot(context, 2),
+                  _slot(context, 3),
+                ],
+              ),
             ),
-          ),
-          Positioned(
-            top: -8,
-            child: _TombolRekam(
-              aktif: sedangMerekam,
-              onTap: onRekam,
+            Positioned(
+              top: -8,
+              child: _TombolRekam(aktif: sedangMerekam, onTap: onRekam),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -181,10 +184,8 @@ class _TombolRekamState extends State<_TombolRekam>
         },
         child: AnimatedBuilder(
           animation: _denyut,
-          builder: (context, anak) => Transform.scale(
-            scale: 1.0 + 0.04 * _denyut.value,
-            child: anak,
-          ),
+          builder: (context, anak) =>
+              Transform.scale(scale: 1.0 + 0.04 * _denyut.value, child: anak),
           child: Container(
             width: 60,
             height: 60,
@@ -200,9 +201,7 @@ class _TombolRekamState extends State<_TombolRekam>
               ),
             ),
             child: Icon(
-              widget.aktif
-                  ? Icons.stop_rounded
-                  : Icons.directions_walk_rounded,
+              widget.aktif ? Icons.stop_rounded : Icons.directions_walk_rounded,
               color: Colors.white,
               size: 26,
             ),

@@ -21,6 +21,31 @@ enum ModaGerak {
     return kendaraan;
   }
 
+  /// Kecepatan mulai dari sini bertumpuk dengan bersepeda santai.
+  static const ambangAmbigu = 3.0; // ~11 km/jam
+
+  /// Klasifikasi yang juga mempertimbangkan irama langkah.
+  ///
+  /// Kecepatan saja tidak bisa membedakan lari dari bersepeda — rentangnya
+  /// bertumpuk. Di zona ambigu (3–7 m/detik), keputusan diserahkan pada ada
+  /// tidaknya pola langkah kaki.
+  ///
+  /// [adaLangkah] bernilai null bila sensor tidak tersedia; dalam hal itu
+  /// hasilnya kembali ke [dariKecepatan] — lebih baik memberi keuntungan
+  /// pada pengguna daripada menuduh salah orang yang benar-benar berlari.
+  static ModaGerak dari(double meterPerDetik, {bool? adaLangkah}) {
+    final dasar = dariKecepatan(meterPerDetik);
+
+    if (adaLangkah == null) return dasar;
+    if (meterPerDetik < ambangAmbigu) return dasar;
+
+    // Cepat tapi tanpa pola langkah → roda, bukan kaki.
+    if (!adaLangkah) return kendaraan;
+
+    // Ada pola langkah, secepat apa pun → manusia yang berlari.
+    return meterPerDetik < ambangJalan ? diam : lari;
+  }
+
   /// Apakah moda ini menghasilkan kontribusi.
   ///
   /// Diam tidak dihitung (mencegah "menanam" HP di satu titik), dan kendaraan

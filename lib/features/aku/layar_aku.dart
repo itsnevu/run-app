@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/rukun_colors.dart';
 import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
 import '../../core/theme/rukun_typography.dart';
-import '../../data/lokasi.dart';
 import '../../domain/model/kelurahan.dart';
+import '../../shared/pesan_izin.dart';
 import '../../shared/widgets/daftar_rukun.dart';
 import '../../shared/widgets/dialog_konfirmasi.dart';
 import '../../shared/widgets/frosted_card.dart';
@@ -62,17 +63,9 @@ class _LayarAkuState extends ConsumerState<LayarAku> {
       return;
     }
 
-    final lokasi = ref.read(lokasiProvider);
-    switch (izin) {
-      case StatusIzin.layananMati:
-        _pesan('Layanan lokasi di HP kamu lagi mati.');
-        await lokasi.bukaPengaturanLokasi();
-      case StatusIzin.ditolakPermanen:
-        _pesan('Izin lokasinya perlu dinyalakan lewat Pengaturan.');
-        await lokasi.bukaPengaturanAplikasi();
-      case _:
-        _pesan('Belum diizinkan. Nggak apa-apa, bisa kapan-kapan.');
-    }
+    // Jangan seret orang ke pengaturan sistem tanpa diminta — tawarkan
+    // tombolnya, biarkan dia yang memutuskan.
+    await tampilkanPesanIzin(context, ref.read(lokasiProvider), izin);
   }
 
   Future<void> _masuk() async {
@@ -347,6 +340,10 @@ class _Kepala extends StatelessWidget {
                     PilRukun(
                       'Kelurahan ${kelurahan!.nama}',
                       gradient: kelurahan!.warna.gradient,
+                      // Kuning gagal kontras dengan putih. DESIGN.md §2.7
+                      warnaTeks: kelurahan!.warna.teksPutihAman
+                          ? Colors.white
+                          : RukunColors.teksPrimerTerang,
                     )
                   else
                     const PilRukun('Belum ada kelurahan'),

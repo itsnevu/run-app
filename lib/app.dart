@@ -9,8 +9,11 @@ import 'features/peta/layar_peta.dart';
 import 'features/sesi/layar_ringkasan.dart';
 import 'features/sesi/layar_sesi.dart';
 import 'features/tim/layar_tim.dart';
+import 'data/lokasi.dart';
+import 'shared/pesan_izin.dart';
 import 'shared/widgets/bilah_tab.dart';
 import 'shared/widgets/perayaan_klaim.dart';
+import 'state/aksi_profil.dart';
 import 'state/kendali_sesi.dart';
 import 'data/notifikasi.dart';
 import 'state/penyedia.dart';
@@ -89,8 +92,37 @@ class _CangkangRukunState extends ConsumerState<CangkangRukun> {
       return;
     }
 
+    // Pengguna yang menunda lokasi di pembuka belum punya kelurahan. Diminta
+    // di sini, bukan di tempat lain, supaya sesi pertamanya langsung tercatat
+    // untuk sebuah tim — bukan jadi jejak yatim yang nanti tidak bisa naik ke
+    // server karena barisnya butuh kelurahan.
+    final kelurahan = await ref.read(kelurahanSayaProvider.future);
+    if (!mounted) return;
+
+    if (kelurahan == null) {
+      final izin = await ref.read(aksiProfilProvider).nyalakanLokasi();
+      if (!mounted) return;
+      if (!izin.bolehMelacak) {
+        await tampilkanPesanIzin(context, ref.read(lokasiProvider), izin);
+        return;
+      }
+    }
+
     final berhasil = await kendali.mulai();
-    if (!mounted || !berhasil) return;
+    if (!mounted) return;
+
+    // Tombol utama aplikasi tidak boleh diam saat ditolak. Sebelum ini
+    // `mulai()` mengembalikan false dan layar tidak berubah sedikit pun —
+    // di iOS, penolakan pertama membuat dialog sistem tidak pernah muncul
+    // lagi, jadi tombol Rekam mati permanen tanpa satu pun penjelasan.
+    if (!berhasil) {
+      await tampilkanPesanIzin(
+        context,
+        ref.read(lokasiProvider),
+        ref.read(kendaliSesiProvider).izin ?? StatusIzin.ditolak,
+      );
+      return;
+    }
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(

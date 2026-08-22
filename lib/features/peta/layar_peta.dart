@@ -7,10 +7,11 @@ import '../../core/theme/rukun_colors.dart';
 import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
 import '../../core/theme/rukun_typography.dart';
-import '../../data/lokasi.dart';
 import '../../domain/grid/grid_petak.dart';
 import '../../domain/model/kelurahan.dart';
 import '../../domain/model/koordinat.dart';
+import '../../shared/pesan_izin.dart';
+import '../../shared/widgets/bilah_tab.dart';
 import '../../shared/widgets/frosted_card.dart';
 import '../../shared/widgets/petak_bar.dart';
 import '../../state/aksi_profil.dart';
@@ -56,15 +57,7 @@ class _LayarPetaState extends ConsumerState<LayarPeta> {
         _kendali.move(LatLng(posisi.lat, posisi.lng), 16);
       }
     } else {
-      final pesan = switch (izin) {
-        StatusIzin.layananMati => 'Layanan lokasi di HP kamu lagi mati.',
-        StatusIzin.ditolakPermanen =>
-          'Izin lokasinya perlu dinyalakan lewat Pengaturan.',
-        _ => 'Belum diizinkan. Kamu tetap bisa lihat-lihat peta.',
-      };
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(pesan), behavior: SnackBarBehavior.floating),
-      );
+      await tampilkanPesanIzin(context, ref.read(lokasiProvider), izin);
     }
 
     if (mounted) setState(() => _sibuk = false);
@@ -120,28 +113,43 @@ class _LayarPetaState extends ConsumerState<LayarPeta> {
           ),
         ),
 
-        // Tombol "ke lokasiku" — duduk tepat di atas sheet, seperti peta
-        // yang sudah dikenal semua orang.
-        Positioned(
-          right: Jarak.lg,
-          bottom: petakSekarang != null ? 232 : 126,
-          child: _TombolBulat(
-            ikon: Icons.my_location_rounded,
-            aktif: !_sibuk,
-            onTap: _keLokasiku,
-          ),
-        ),
-
-        // Sheet bawah — petak tempat kamu berdiri.
-        if (petakSekarang != null)
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding:
-                  const EdgeInsets.fromLTRB(Jarak.lg, 0, Jarak.lg, 110),
-              child: _SheetPetak(petak: petakSekarang),
+        // Tumpukan bawah: tombol "ke lokasiku" duduk di atas sheet, dan
+        // keduanya berhenti tepat di atas bilah tab.
+        //
+        // Satu Column, bukan dua Positioned dengan angka ajaib: tinggi sheet
+        // berubah menurut isinya (rantai pelintas bertambah, pesan memanjang),
+        // jadi posisi yang dikunci ke angka pasti tertimbun cepat atau lambat.
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              Jarak.lg,
+              0,
+              Jarak.lg,
+              MediaQuery.viewPaddingOf(context).bottom +
+                  BilahTab.tinggi +
+                  Jarak.md,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _TombolBulat(
+                    ikon: Icons.my_location_rounded,
+                    aktif: !_sibuk,
+                    onTap: _keLokasiku,
+                  ),
+                ),
+                if (petakSekarang != null) ...[
+                  const SizedBox(height: Jarak.md),
+                  _SheetPetak(petak: petakSekarang),
+                ],
+              ],
             ),
           ),
+        ),
       ],
     );
   }

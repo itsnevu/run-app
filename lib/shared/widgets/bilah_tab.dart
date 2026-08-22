@@ -38,6 +38,13 @@ class BilahTab extends StatelessWidget {
   final VoidCallback onRekam;
   final bool sedangMerekam;
 
+  /// Tinggi bilah ini di luar area aman.
+  ///
+  /// Diumumkan supaya layar yang mengambang di atas peta bisa berhenti
+  /// menebak: sebelumnya posisi tombol dan sheet dikunci ke angka ajaib yang
+  /// tidak pernah cocok dengan tinggi sebenarnya.
+  static const tinggi = 82.0;
+
   static const tab = [
     TabRukun('Peta', Icons.map_outlined, Icons.map_rounded),
     TabRukun('Tim', Icons.groups_outlined, Icons.groups_rounded),

@@ -11,6 +11,7 @@ import '../../domain/model/kelurahan.dart';
 import '../../domain/model/koordinat.dart';
 import '../../domain/model/pelintas.dart';
 import '../../domain/model/sesi.dart';
+import '../checkpoint_sesi.dart';
 import 'repo_rukun.dart';
 
 /// Implementasi lokal — menyimpan di perangkat, tetangga disimulasikan.
@@ -31,6 +32,20 @@ class RepoLokal implements RepoRukun {
   static const _kLintasan = 'lintasan';
   static const _kSesi = 'sesi';
   static const _kZona = 'zona_privat';
+
+  /// Seluruh kunci SharedPreferences yang benar-benar milik Rukun.
+  ///
+  /// Store ini dipakai bersama paket lain — `supabase_flutter` menyimpan
+  /// token sesinya di sana. Karena itu penghapusan data perangkat menyebut
+  /// kuncinya satu per satu, tidak pernah `clear()`.
+  static const kunciMilikRukun = [
+    _kProfil,
+    _kJejak,
+    _kLintasan,
+    _kSesi,
+    _kZona,
+    CheckpointSesi.kunci,
+  ];
 
   /// Kelurahan contoh untuk MVP. Produksi mengambil dari batas wilayah asli.
   static const kelurahanContoh = <Kelurahan>[

@@ -120,41 +120,50 @@ class _LembarMasukState extends ConsumerState<LembarMasuk> {
           gradient: context.gradients.permukaanTinggi,
         ),
         padding: const EdgeInsets.fromLTRB(
-            Jarak.tepiLayar, Jarak.md, Jarak.tepiLayar, Jarak.xxl),
+          Jarak.tepiLayar,
+          Jarak.md,
+          Jarak.tepiLayar,
+          Jarak.xxl,
+        ),
         child: SafeArea(
           top: false,
-          child: AnimatedSize(
-            duration: Gerak.sigap,
-            curve: Gerak.sigapKurva,
-            alignment: Alignment.topCenter,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: ShapeDecoration(
-                      color: context.teksTersier.withValues(alpha: 0.4),
-                      shape: const StadiumBorder(),
+          // Keyboard memangkas tinggi lembar ini sebesar tingginya sendiri.
+          // Tanpa gulir, tombol "Masuk" terpotong di iPhone SE dan
+          // RenderFlex melempar overflow di layar mana pun yang sempit.
+          child: SingleChildScrollView(
+            child: AnimatedSize(
+              duration: Gerak.sigap,
+              curve: Gerak.sigapKurva,
+              alignment: Alignment.topCenter,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: ShapeDecoration(
+                        color: context.teksTersier.withValues(alpha: 0.4),
+                        shape: const StadiumBorder(),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: Jarak.xxl),
-                if (_perluKonfirmasi)
-                  _KonfirmasiEmail(email: _email.text.trim())
-                else if (!bisa)
-                  const _BelumAktif()
-                else
-                  ..._formulir(context),
-                const SizedBox(height: Jarak.lg),
-                TombolRukun(
-                  label: _perluKonfirmasi || !bisa ? 'Tutup' : 'Nanti aja',
-                  varian: VarianTombol.hantu,
-                  onTap: () => Navigator.of(context).pop(false),
-                ),
-              ],
+                  const SizedBox(height: Jarak.xxl),
+                  if (_perluKonfirmasi)
+                    _KonfirmasiEmail(email: _email.text.trim())
+                  else if (!bisa)
+                    const _BelumAktif()
+                  else
+                    ..._formulir(context),
+                  const SizedBox(height: Jarak.lg),
+                  TombolRukun(
+                    label: _perluKonfirmasi || !bisa ? 'Tutup' : 'Nanti aja',
+                    varian: VarianTombol.hantu,
+                    onTap: () => Navigator.of(context).pop(false),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -163,76 +172,70 @@ class _LembarMasukState extends ConsumerState<LembarMasuk> {
   }
 
   List<Widget> _formulir(BuildContext context) => [
-        Text(
-          _daftar ? 'Bikin akun Rukun' : 'Masuk ke Rukun',
-          style: RukunText.judul2,
+    Text(
+      _daftar ? 'Bikin akun Rukun' : 'Masuk ke Rukun',
+      style: RukunText.judul2,
+    ),
+    const SizedBox(height: Jarak.sm),
+    Text(
+      'Akun bikin Jejakmu aman waktu ganti HP, dan bikin klaim bareng '
+      'tetangga jalan.\n\nNggak wajib — semua fitur tetap kebuka tanpa ini.',
+      style: RukunText.subhead.copyWith(color: context.teksSekunder),
+    ),
+    const SizedBox(height: Jarak.xl),
+    PilihanSegmen(
+      label: const ['Masuk', 'Daftar'],
+      terpilih: _mode,
+      onPilih: (i) => setState(() {
+        _mode = i;
+        _galat = null;
+      }),
+    ),
+    const SizedBox(height: Jarak.lg),
+    KolomTeksRukun(
+      kendali: _email,
+      petunjuk: 'Email',
+      ikon: Icons.alternate_email_rounded,
+      jenis: TextInputType.emailAddress,
+      otomatis: const [AutofillHints.email],
+      aktif: !_sibuk,
+    ),
+    const SizedBox(height: Jarak.md),
+    KolomTeksRukun(
+      kendali: _sandi,
+      petunjuk: 'Kata sandi',
+      ikon: Icons.lock_outline_rounded,
+      rahasia: true,
+      aksi: TextInputAction.done,
+      otomatis: [_daftar ? AutofillHints.newPassword : AutofillHints.password],
+      onKirim: (_) => _kirim(),
+      aktif: !_sibuk,
+    ),
+    if (_galat != null) ...[
+      const SizedBox(height: Jarak.md),
+      _PesanGalat(_galat!),
+    ],
+    const SizedBox(height: Jarak.xl),
+    TombolRukun(
+      label: _sibuk ? 'Sebentar...' : (_daftar ? 'Bikin akun' : 'Masuk'),
+      onTap: _sibuk ? null : _kirim,
+    ),
+    const SizedBox(height: Jarak.md),
+    Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.lock_outline_rounded, size: 14, color: context.teksTersier),
+        const SizedBox(width: Jarak.xs),
+        Expanded(
+          child: Text(
+            'Kecepatan dan rutemu nggak pernah ikut terkirim — '
+            'kolomnya memang nggak ada di server.',
+            style: RukunText.footnote.copyWith(color: context.teksTersier),
+          ),
         ),
-        const SizedBox(height: Jarak.sm),
-        Text(
-          'Akun bikin Jejakmu aman waktu ganti HP, dan bikin klaim bareng '
-          'tetangga jalan.\n\nNggak wajib — semua fitur tetap kebuka tanpa ini.',
-          style: RukunText.subhead.copyWith(color: context.teksSekunder),
-        ),
-        const SizedBox(height: Jarak.xl),
-        PilihanSegmen(
-          label: const ['Masuk', 'Daftar'],
-          terpilih: _mode,
-          onPilih: (i) => setState(() {
-            _mode = i;
-            _galat = null;
-          }),
-        ),
-        const SizedBox(height: Jarak.lg),
-        KolomTeksRukun(
-          kendali: _email,
-          petunjuk: 'Email',
-          ikon: Icons.alternate_email_rounded,
-          jenis: TextInputType.emailAddress,
-          otomatis: const [AutofillHints.email],
-          aktif: !_sibuk,
-        ),
-        const SizedBox(height: Jarak.md),
-        KolomTeksRukun(
-          kendali: _sandi,
-          petunjuk: 'Kata sandi',
-          ikon: Icons.lock_outline_rounded,
-          rahasia: true,
-          aksi: TextInputAction.done,
-          otomatis: [
-            _daftar ? AutofillHints.newPassword : AutofillHints.password,
-          ],
-          onKirim: (_) => _kirim(),
-          aktif: !_sibuk,
-        ),
-        if (_galat != null) ...[
-          const SizedBox(height: Jarak.md),
-          _PesanGalat(_galat!),
-        ],
-        const SizedBox(height: Jarak.xl),
-        TombolRukun(
-          label: _sibuk
-              ? 'Sebentar...'
-              : (_daftar ? 'Bikin akun' : 'Masuk'),
-          onTap: _sibuk ? null : _kirim,
-        ),
-        const SizedBox(height: Jarak.md),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.lock_outline_rounded,
-                size: 14, color: context.teksTersier),
-            const SizedBox(width: Jarak.xs),
-            Expanded(
-              child: Text(
-                'Kecepatan dan rutemu nggak pernah ikut terkirim — '
-                'kolomnya memang nggak ada di server.',
-                style:
-                    RukunText.footnote.copyWith(color: context.teksTersier),
-              ),
-            ),
-          ],
-        ),
-      ];
+      ],
+    ),
+  ];
 }
 
 /// Ditampilkan saat build ini memang belum punya backend.
@@ -275,8 +278,11 @@ class _KonfirmasiEmail extends StatelessWidget {
             radius: Sudut.md,
             gradient: context.gradients.tumbuh,
           ),
-          child: const Icon(Icons.mark_email_read_outlined,
-              color: Colors.white, size: 24),
+          child: const Icon(
+            Icons.mark_email_read_outlined,
+            color: Colors.white,
+            size: 24,
+          ),
         ),
         const SizedBox(height: Jarak.lg),
         Text('Cek email kamu', style: RukunText.judul3),

@@ -6,8 +6,8 @@ import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
 import '../../core/theme/rukun_typography.dart';
 import '../../core/util/bentuk.dart';
-import '../../data/lokasi.dart';
 import '../../domain/model/kelurahan.dart';
+import '../../shared/pesan_izin.dart';
 import '../../shared/widgets/daftar_rukun.dart';
 import '../../shared/widgets/frosted_card.dart';
 import '../../shared/widgets/gradient_button.dart';
@@ -38,15 +38,7 @@ class _LayarTimState extends ConsumerState<LayarTim> {
     setState(() => _sibuk = false);
     if (izin.bolehMelacak) return;
 
-    final pesan = switch (izin) {
-      StatusIzin.layananMati => 'Layanan lokasi di HP kamu lagi mati.',
-      StatusIzin.ditolakPermanen =>
-        'Izin lokasinya perlu dinyalakan lewat Pengaturan.',
-      _ => 'Belum diizinkan. Nggak apa-apa, bisa kapan-kapan.',
-    };
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(pesan), behavior: SnackBarBehavior.floating),
-    );
+    await tampilkanPesanIzin(context, ref.read(lokasiProvider), izin);
   }
 
   @override

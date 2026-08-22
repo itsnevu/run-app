@@ -305,6 +305,7 @@ class PilRukun extends StatelessWidget {
     this.gradient,
     this.ikon,
     this.padat = false,
+    this.warnaTeks,
   });
 
   final String teks;
@@ -314,10 +315,18 @@ class PilRukun extends StatelessWidget {
   /// Versi tanpa isian warna — untuk label netral.
   final bool padat;
 
+  /// Warna teks di atas isian berwarna.
+  ///
+  /// Wajib diisi kalau gradientnya bisa berupa warna tim: putih gagal
+  /// kontras 4.5:1 di atas kuning (DESIGN.md §2.7), dan pil yang memaksa
+  /// putih membuat labelnya nyaris tak terbaca.
+  final Color? warnaTeks;
+
   @override
   Widget build(BuildContext context) {
     final berwarna = gradient != null && !padat;
-    final warnaTeks = berwarna ? Colors.white : context.teksSekunder;
+    final warna =
+        berwarna ? (warnaTeks ?? Colors.white) : context.teksSekunder;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -335,10 +344,10 @@ class PilRukun extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (ikon != null) ...[
-            Icon(ikon, size: 13, color: warnaTeks),
+            Icon(ikon, size: 13, color: warna),
             const SizedBox(width: Jarak.xs),
           ],
-          Text(teks, style: RukunText.caption.copyWith(color: warnaTeks)),
+          Text(teks, style: RukunText.caption.copyWith(color: warna)),
         ],
       ),
     );

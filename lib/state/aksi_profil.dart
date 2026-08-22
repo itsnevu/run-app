@@ -4,6 +4,7 @@ import '../data/repo/repo_lokal.dart';
 import '../data/repo/repo_rukun.dart';
 import '../data/repo/repo_supabase.dart';
 import '../domain/model/kelurahan.dart';
+import 'akun.dart';
 import 'penyedia.dart';
 
 /// Aksi-aksi kecil seputar profil yang dipakai banyak layar.
@@ -21,12 +22,24 @@ class AksiProfil {
   /// Penyimpanan perangkat — selalu tersedia, bahkan tanpa akun.
   RepoLokal get _lokal => RepoLokal(_ref.read(prefProvider));
 
-  /// Profil yang belum punya kelurahan tidak punya tempat di server
-  /// (kolomnya wajib berelasi ke kelurahan asli), jadi ia tinggal di
-  /// perangkat sampai lokasinya diberikan.
+  /// Menyimpan profil ke perangkat **dan**, bila memungkinkan, ke server.
+  ///
+  /// Perangkat selalu ditulis — ia sumber untuk penyelarasan berikutnya dan
+  /// satu-satunya rumah bagi pengguna tanpa akun. Server hanya ikut ditulis
+  /// kalau profilnya sudah punya kelurahan, karena kolom itu wajib berelasi
+  /// ke kelurahan asli di skema.
+  ///
+  /// Menulis ke salah satu saja pernah membuat data terbelah: pengguna yang
+  /// sudah masuk tapi belum memberi lokasi menyimpan nama barunya ke
+  /// perangkat, sementara seluruh layar membaca server — namanya seolah
+  /// tidak pernah berubah.
   Future<void> _simpan(Profil profil) async {
-    final repo = profil.punyaKelurahan ? _repo : _lokal;
-    await repo.simpanProfil(profil);
+    await _lokal.simpanProfil(profil);
+
+    final server = _repo;
+    if (server is RepoSupabase && profil.punyaKelurahan) {
+      await server.simpanProfil(profil);
+    }
     _segarkan();
   }
 
@@ -70,6 +83,18 @@ class AksiProfil {
           .salin(kelurahanId: kelurahan.id),
     );
     _ref.invalidate(posisiProvider);
+
+    // Kelurahan baru saja lahir. Kalau pengguna sudah masuk, inilah saat
+    // progres yang tertahan di perangkat akhirnya bisa naik — sebelum ini
+    // server menolaknya karena profil butuh kelurahan.
+    if (_ref.read(akunProvider).masuk) {
+      try {
+        await selarasSetelahMasuk();
+      } catch (_) {
+        // Gagal menyelaraskan bukan alasan menggagalkan izin lokasi.
+        // Data lokal tetap utuh dan akan dicoba lagi lain kali.
+      }
+    }
     return izin;
   }
 
@@ -94,7 +119,17 @@ class AksiProfil {
 
     final lokal = _lokal;
     final profilLokal = await lokal.muatProfil();
-    if (profilLokal == null || !profilLokal.punyaKelurahan) return;
+    if (profilLokal == null) return;
+
+    // Baris `jejak` berelasi ke `profil`, jadi urutannya tidak bisa dibalik:
+    // tanpa profil server, satu pun petak tidak akan diterima.
+    //
+    // Dan profil server wajib punya kelurahan. Kalau belum ada, penyelarasan
+    // ditunda — BUKAN dibatalkan: data tetap di perangkat, dan
+    // [nyalakanLokasi] memanggil ulang fungsi ini begitu kelurahan didapat.
+    // Sementara itu [profilProvider] jatuh kembali ke salinan perangkat,
+    // supaya tidak ada yang terlihat hilang.
+    if (!profilLokal.punyaKelurahan) return;
 
     if (await server.muatProfil() == null) {
       await server.simpanProfil(profilLokal);
@@ -108,12 +143,24 @@ class AksiProfil {
     _ref.invalidate(hariAktifProvider);
   }
 
-  /// Menghapus seluruh data di perangkat ini.
+  /// Menghapus data Rukun di perangkat ini.
   ///
   /// Dipakai setelah akun dihapus, dan tersedia sendiri untuk pengguna tamu
   /// yang ingin memulai bersih tanpa harus mencopot aplikasi.
+  ///
+  /// **Bukan `pref.clear()`.** SharedPreferences di sini dipakai bersama
+  /// paket lain — `supabase_flutter` menyimpan token sesinya di store yang
+  /// sama. Menyapu semuanya membuat pengguna terlempar keluar dari akunnya
+  /// tanpa pernah diberi tahu, dan baru ketahuan saat aplikasi dibuka lagi.
+  /// Jadi yang dihapus hanya kunci yang benar-benar milik Rukun.
   Future<void> hapusDataPerangkat() async {
-    await _ref.read(prefProvider).clear();
+    final pref = _ref.read(prefProvider);
+    for (final kunci in [
+      ...RepoLokal.kunciMilikRukun,
+      PembukaSelesai.kunci,
+    ]) {
+      await pref.remove(kunci);
+    }
     _ref.invalidate(pembukaSelesaiProvider);
     _segarkan();
     _ref.invalidate(jejakProvider);

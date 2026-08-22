@@ -59,18 +59,19 @@ final repoProvider = Provider<RepoRukun>((ref) {
 /// — termasuk saat pengguna masuk ke akun baru yang profil servernya masih
 /// kosong. Pembuka adalah perkenalan, bukan formulir pendaftaran.
 class PembukaSelesai extends Notifier<bool> {
-  static const _kunci = 'pembuka_selesai';
+  /// Dipakai juga oleh daftar penghapusan data di `AksiProfil`.
+  static const kunci = 'pembuka_selesai';
 
   @override
   bool build() {
     final pref = ref.watch(prefProvider);
     // Pengguna dari versi sebelum penanda ini ada sudah punya profil
     // tersimpan. Mereka tidak boleh disuruh mengulang pembuka.
-    return pref.getBool(_kunci) ?? (pref.getString('profil') != null);
+    return pref.getBool(kunci) ?? (pref.getString('profil') != null);
   }
 
   Future<void> tandai() async {
-    await ref.read(prefProvider).setBool(_kunci, true);
+    await ref.read(prefProvider).setBool(kunci, true);
     state = true;
   }
 }
@@ -90,9 +91,19 @@ final sensorIramaProvider =
     Provider<SensorIrama>((_) => SensorIramaPerangkat());
 
 /// Profil pengguna. Null berarti belum ada sama sekali.
-final profilProvider = FutureProvider<Profil?>(
-  (ref) => ref.watch(repoProvider).muatProfil(),
-);
+///
+/// Kalau penyimpanan aktif adalah server dan barisnya belum ada — kasus nyata
+/// bagi pengguna yang baru masuk tapi belum memberi lokasi, karena kolom
+/// kelurahan di server wajib terisi — profil perangkat dipakai sebagai
+/// cadangan. Tanpa ini, orang yang baru saja masuk mendadak disapa "Kamu"
+/// dan mengira namanya hilang.
+final profilProvider = FutureProvider<Profil?>((ref) async {
+  final repo = ref.watch(repoProvider);
+  final dari = await repo.muatProfil();
+  if (dari != null || repo is RepoLokal) return dari;
+
+  return RepoLokal(ref.watch(prefProvider)).muatProfil();
+});
 
 /// Kelurahan pengguna, atau null bila belum ditentukan.
 ///

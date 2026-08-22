@@ -18,7 +18,8 @@ security definer
 set search_path = public, auth
 as $$
 declare
-  v_uid uuid := auth.uid();
+  v_uid      uuid := auth.uid();
+  v_terhapus int;
 begin
   if v_uid is null then
     raise exception 'Belum masuk';
@@ -36,7 +37,25 @@ begin
 
   -- Terakhir: identitasnya sendiri. Setelah baris ini, tidak ada satu pun
   -- baris di server yang bisa dihubungkan kembali ke orang tersebut.
+  --
+  -- Hasilnya DIPERIKSA, tidak diasumsikan. `auth.users` dimiliki
+  -- `supabase_auth_admin`, dan hak peran pemilik fungsi ini atasnya datang
+  -- dari skrip penyiapan Supabase — bukan sesuatu yang dijamin skema ini.
+  -- Kalau RLS di `auth.users` menyaring baris itu, DELETE tidak melempar
+  -- error, ia hanya mengenai NOL baris. Tanpa pemeriksaan ini transaksinya
+  -- commit dengan tenang: seluruh data pengguna lenyap, identitasnya tetap
+  -- hidup, dan orang itu masih bisa masuk ke akun yang katanya sudah
+  -- dihapus — kegagalan paling buruk yang mungkin terjadi di sini.
+  --
+  -- Dengan `raise`, transaksinya rollback: datanya utuh kembali dan
+  -- aplikasi menampilkan kegagalan yang jujur.
   delete from auth.users where id = v_uid;
+  get diagnostics v_terhapus = row_count;
+
+  if v_terhapus <> 1 then
+    raise exception
+      'Identitas gagal dihapus (% baris). Tidak ada yang diubah.', v_terhapus;
+  end if;
 end;
 $$;
 

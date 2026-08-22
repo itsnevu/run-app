@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/rukun_colors.dart';
 import '../../core/theme/rukun_motion.dart';
 import '../../core/theme/rukun_spacing.dart';
 import '../../core/theme/rukun_theme.dart';
@@ -10,6 +11,7 @@ import '../../data/lokasi.dart';
 import '../../data/repo/repo_lokal.dart';
 import '../../domain/model/kelurahan.dart';
 import '../../domain/model/koordinat.dart';
+import '../../shared/pesan_izin.dart';
 import '../../shared/widgets/frosted_card.dart';
 import '../../shared/widgets/gradient_button.dart';
 import '../../shared/widgets/kolom_teks.dart';
@@ -124,7 +126,18 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
   Future<void> _mulaiJalan() async {
     final berhasil = await ref.read(kendaliSesiProvider.notifier).mulai();
     if (!mounted) return;
-    if (berhasil) _ke(_Tahap.merekam);
+
+    // Izin bisa dicabut di antara dua layar, atau "Allow Once" kedaluwarsa.
+    // Jarang — tapi kalau terjadi, tombolnya tidak boleh diam saja.
+    if (!berhasil) {
+      await tampilkanPesanIzin(
+        context,
+        ref.read(lokasiProvider),
+        ref.read(kendaliSesiProvider).izin ?? StatusIzin.ditolak,
+      );
+      return;
+    }
+    _ke(_Tahap.merekam);
   }
 
   Future<void> _selesaikanJalan() async {
@@ -195,11 +208,24 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
                       jumlah: _tahapAwal.length,
                       onLewati: _tahapAwal.contains(_tahap) ? _lewati : null,
                     ),
+                    // Layar kecil dengan teks aksesibilitas besar membuat
+                    // kolom di bawah melebihi tinggi layar. Digulirkan, bukan
+                    // dipotong — tapi tetap dipaksa setinggi layar saat muat,
+                    // supaya tata letaknya tidak melompat ke atas.
                     Expanded(
-                      child: AnimatedSwitcher(
-                        duration: Gerak.halus,
-                        switchInCurve: Gerak.halusKurva,
-                        child: _isi(status),
+                      child: LayoutBuilder(
+                        builder: (context, batas) => SingleChildScrollView(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: batas.maxHeight,
+                            ),
+                            child: AnimatedSwitcher(
+                              duration: Gerak.halus,
+                              switchInCurve: Gerak.halusKurva,
+                              child: _isi(status),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -214,54 +240,49 @@ class _LayarOnboardingState extends ConsumerState<LayarOnboarding> {
 
   /// Lewati: kalau kelurahan sudah ketahuan, ia ikut terbawa; kalau belum,
   /// pengguna masuk sebagai tamu tanpa lokasi.
-  Future<void> _lewati() =>
-      _kelurahan == null ? _lihatDulu() : _masuk();
+  Future<void> _lewati() => _kelurahan == null ? _lihatDulu() : _masuk();
 
   Widget _isi(StatusSesi status) => switch (_tahap) {
-        _Tahap.sambutan => _Sambutan(
-            key: const ValueKey('sambutan'),
-            onLanjut: () => _ke(_Tahap.izin),
-            onLihatDulu: _lihatDulu,
-          ),
-        _Tahap.izin => _Izin(
-            key: const ValueKey('izin'),
-            izin: _izin,
-            sibuk: _sibuk,
-            onIzinkan: _mintaIzin,
-            onPengaturan: _bukaPengaturan,
-            onNanti: _lihatDulu,
-          ),
-        _Tahap.tim => _Tim(
-            key: const ValueKey('tim'),
-            kelurahan: _kelurahan!,
-            onLanjut: () => _ke(_Tahap.ajakan),
-          ),
-        _Tahap.ajakan => _Ajakan(
-            key: const ValueKey('ajakan'),
-            onMulai: _mulaiJalan,
-            onNanti: _masuk,
-          ),
-        _Tahap.merekam => _Merekam(
-            key: const ValueKey('merekam'),
-            status: status,
-            onSelesai: _selesaikanJalan,
-          ),
-        _Tahap.berhasil => _Berhasil(
-            key: const ValueKey('berhasil'),
-            jumlahPetak: status.petakSesi.length,
-            kendali: _namaKendali,
-            onSelesai: _simpanNama,
-          ),
-      };
+    _Tahap.sambutan => _Sambutan(
+      key: const ValueKey('sambutan'),
+      onLanjut: () => _ke(_Tahap.izin),
+      onLihatDulu: _lihatDulu,
+    ),
+    _Tahap.izin => _Izin(
+      key: const ValueKey('izin'),
+      izin: _izin,
+      sibuk: _sibuk,
+      onIzinkan: _mintaIzin,
+      onPengaturan: _bukaPengaturan,
+      onNanti: _lihatDulu,
+    ),
+    _Tahap.tim => _Tim(
+      key: const ValueKey('tim'),
+      kelurahan: _kelurahan!,
+      onLanjut: () => _ke(_Tahap.ajakan),
+    ),
+    _Tahap.ajakan => _Ajakan(
+      key: const ValueKey('ajakan'),
+      onMulai: _mulaiJalan,
+      onNanti: _masuk,
+    ),
+    _Tahap.merekam => _Merekam(
+      key: const ValueKey('merekam'),
+      status: status,
+      onSelesai: _selesaikanJalan,
+    ),
+    _Tahap.berhasil => _Berhasil(
+      key: const ValueKey('berhasil'),
+      jumlahPetak: status.petakSesi.length,
+      kendali: _namaKendali,
+      onSelesai: _simpanNama,
+    ),
+  };
 }
 
 /// Titik kemajuan di kiri, jalan keluar di kanan.
 class _Kepala extends StatelessWidget {
-  const _Kepala({
-    required this.langkah,
-    required this.jumlah,
-    this.onLewati,
-  });
+  const _Kepala({required this.langkah, required this.jumlah, this.onLewati});
 
   final int langkah;
   final int jumlah;
@@ -326,8 +347,8 @@ class _Sambutan extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        const Spacer(),
         TeksGradient(
           'Rukun',
           gradient: context.gradients.terang,
@@ -373,22 +394,22 @@ class _Izin extends StatelessWidget {
       izin == StatusIzin.ditolakPermanen || izin == StatusIzin.layananMati;
 
   String get _pesanGagal => switch (izin) {
-        StatusIzin.layananMati =>
-          'Layanan lokasi di HP kamu lagi mati. Nyalakan dulu ya.',
-        StatusIzin.ditolakPermanen =>
-          'Izin lokasinya dimatikan permanen. Bisa dinyalakan lagi lewat '
-              'Pengaturan.',
-        StatusIzin.ditolak =>
-          'Belum diizinkan. Kamu tetap bisa masuk dan lihat-lihat dulu.',
-        _ => '',
-      };
+    StatusIzin.layananMati =>
+      'Layanan lokasi di HP kamu lagi mati. Nyalakan dulu ya.',
+    StatusIzin.ditolakPermanen =>
+      'Izin lokasinya dimatikan permanen. Bisa dinyalakan lagi lewat '
+          'Pengaturan.',
+    StatusIzin.ditolak =>
+      'Belum diizinkan. Kamu tetap bisa masuk dan lihat-lihat dulu.',
+    _ => '',
+  };
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        const Spacer(),
         KartuBuram(
           buram: Buram.tebal,
           child: Column(
@@ -446,8 +467,8 @@ class _Tim extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        const Spacer(),
         KartuBuram(
           buram: Buram.tebal,
           child: Column(
@@ -456,14 +477,21 @@ class _Tim extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: Jarak.lg, vertical: Jarak.sm),
+                  horizontal: Jarak.lg,
+                  vertical: Jarak.sm,
+                ),
                 decoration: ShapeDecoration(
                   gradient: kelurahan.warna.gradient,
                   shape: const StadiumBorder(),
                 ),
                 child: Text(
                   'Kelurahan ${kelurahan.nama}',
-                  style: RukunText.caption.copyWith(color: Colors.white),
+                  style: RukunText.caption.copyWith(
+                    // Kuning gagal kontras dengan putih. DESIGN.md §2.7
+                    color: kelurahan.warna.teksPutihAman
+                        ? Colors.white
+                        : RukunColors.teksPrimerTerang,
+                  ),
                 ),
               ),
               const SizedBox(height: Jarak.lg),
@@ -497,8 +525,8 @@ class _Ajakan extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        const Spacer(),
         KartuBuram(
           buram: Buram.tebal,
           child: Column(
@@ -535,11 +563,7 @@ class _Ajakan extends StatelessWidget {
 
 // ── Merekam ───────────────────────────────────────────────────────
 class _Merekam extends StatelessWidget {
-  const _Merekam({
-    super.key,
-    required this.status,
-    required this.onSelesai,
-  });
+  const _Merekam({super.key, required this.status, required this.onSelesai});
 
   final StatusSesi status;
   final VoidCallback onSelesai;
@@ -552,6 +576,7 @@ class _Merekam extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         KartuBuram(
           buram: Buram.sedang,
@@ -565,13 +590,15 @@ class _Merekam extends StatelessWidget {
                     Text(
                       '${menit.toString().padLeft(2, '0')}:'
                       '${detik.toString().padLeft(2, '0')}',
-                      style: RukunText.angkaSedang
-                          .copyWith(color: context.warna.onSurface),
+                      style: RukunText.angkaSedang.copyWith(
+                        color: context.warna.onSurface,
+                      ),
                     ),
                     Text(
                       'waktu jalan',
-                      style: RukunText.caption
-                          .copyWith(color: context.teksSekunder),
+                      style: RukunText.caption.copyWith(
+                        color: context.teksSekunder,
+                      ),
                     ),
                   ],
                 ),
@@ -587,26 +614,29 @@ class _Merekam extends StatelessWidget {
                   ),
                   Text(
                     'petak terbuka',
-                    style:
-                        RukunText.caption.copyWith(color: context.teksSekunder),
+                    style: RukunText.caption.copyWith(
+                      color: context.teksSekunder,
+                    ),
                   ),
                 ],
               ),
             ],
           ),
         ),
-        const Spacer(),
         if (jumlah > 0)
           Padding(
             padding: const EdgeInsets.only(bottom: Jarak.lg),
             child: KartuBuram(
               buram: Buram.tipis,
               padding: const EdgeInsets.symmetric(
-                  horizontal: Jarak.xl, vertical: Jarak.lg),
+                horizontal: Jarak.xl,
+                vertical: Jarak.lg,
+              ),
               child: Text(
                 'Kabut kebuka. Petak ini punya kamu selamanya.',
-                style:
-                    RukunText.subhead.copyWith(color: context.warna.onSurface),
+                style: RukunText.subhead.copyWith(
+                  color: context.warna.onSurface,
+                ),
               ),
             ),
           ),
@@ -635,70 +665,69 @@ class _Berhasil extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      reverse: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: Jarak.xxxl),
-          KartuBuram(
-            buram: Buram.tebal,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    TeksGradient(
-                      '+$jumlahPetak',
-                      gradient: context.gradients.fajar,
-                      style: RukunText.angkaBesar,
-                    ),
-                    const SizedBox(width: Jarak.sm),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text('petak', style: RukunText.judul3),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: Jarak.sm),
-                Text(
-                  'Petak ini milik kamu selamanya — nggak bisa direbut '
-                  'siapa pun.',
-                  style:
-                      RukunText.subhead.copyWith(color: context.teksSekunder),
-                ),
-                const SizedBox(height: Jarak.xl),
-                const Divider(),
-                const SizedBox(height: Jarak.xl),
-                // Nama diminta SETELAH nilai diberikan, bukan sebelumnya —
-                // dan tetap boleh dikosongkan.
-                Text('Tetanggamu bakal lihat kamu sebagai siapa?',
-                    style: RukunText.headline),
-                const SizedBox(height: Jarak.md),
-                KolomTeksRukun(
-                  kendali: kendali,
-                  petunjuk: 'Nama panggilan (boleh dilewati)',
-                  kapitalisasi: TextCapitalization.words,
-                  aksi: TextInputAction.done,
-                  onKirim: (_) => onSelesai(),
-                ),
-              ],
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        const SizedBox(height: Jarak.xxxl),
+        KartuBuram(
+          buram: Buram.tebal,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  TeksGradient(
+                    '+$jumlahPetak',
+                    gradient: context.gradients.fajar,
+                    style: RukunText.angkaBesar,
+                  ),
+                  const SizedBox(width: Jarak.sm),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text('petak', style: RukunText.judul3),
+                  ),
+                ],
+              ),
+              const SizedBox(height: Jarak.sm),
+              Text(
+                'Petak ini milik kamu selamanya — nggak bisa direbut '
+                'siapa pun.',
+                style: RukunText.subhead.copyWith(color: context.teksSekunder),
+              ),
+              const SizedBox(height: Jarak.xl),
+              const Divider(),
+              const SizedBox(height: Jarak.xl),
+              // Nama diminta SETELAH nilai diberikan, bukan sebelumnya —
+              // dan tetap boleh dikosongkan.
+              Text(
+                'Tetanggamu bakal lihat kamu sebagai siapa?',
+                style: RukunText.headline,
+              ),
+              const SizedBox(height: Jarak.md),
+              KolomTeksRukun(
+                kendali: kendali,
+                petunjuk: 'Nama panggilan (boleh dilewati)',
+                kapitalisasi: TextCapitalization.words,
+                aksi: TextInputAction.done,
+                onKirim: (_) => onSelesai(),
+              ),
+            ],
           ),
-          const SizedBox(height: Jarak.xl),
-          TombolRukun(label: 'Masuk ke peta', onTap: onSelesai),
-          const SizedBox(height: Jarak.md),
-          Text(
-            'Mau progresmu aman kalau ganti HP? Bikin akun kapan aja '
-            'lewat tab Aku — nggak wajib.',
-            textAlign: TextAlign.center,
-            style: RukunText.footnote.copyWith(color: context.teksTersier),
-          ),
-          const SizedBox(height: Jarak.lg),
-        ],
-      ),
+        ),
+        const SizedBox(height: Jarak.xl),
+        TombolRukun(label: 'Masuk ke peta', onTap: onSelesai),
+        const SizedBox(height: Jarak.md),
+        Text(
+          'Mau progresmu aman kalau ganti HP? Bikin akun kapan aja '
+          'lewat tab Aku — nggak wajib.',
+          textAlign: TextAlign.center,
+          style: RukunText.footnote.copyWith(color: context.teksTersier),
+        ),
+        const SizedBox(height: Jarak.lg),
+      ],
     );
   }
 }

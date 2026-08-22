@@ -21,11 +21,13 @@ class CheckpointSesi {
 
   final SharedPreferences _pref;
 
-  static const _kunci = 'sesi_berjalan';
+  /// Kunci penyimpanannya, dipakai juga oleh daftar penghapusan data
+  /// perangkat di `AksiProfil.hapusDataPerangkat`.
+  static const kunci = 'sesi_berjalan';
 
   Future<void> simpan(Sesi sesi) async {
     await _pref.setString(
-      _kunci,
+      kunci,
       jsonEncode({
         'id': sesi.id,
         'mulai': sesi.mulai.toIso8601String(),
@@ -43,7 +45,7 @@ class CheckpointSesi {
 
   /// Sesi yang belum sempat diselesaikan, bila ada.
   Sesi? muat() {
-    final mentah = _pref.getString(_kunci);
+    final mentah = _pref.getString(kunci);
     if (mentah == null) return null;
 
     try {
@@ -73,5 +75,5 @@ class CheckpointSesi {
     }
   }
 
-  Future<void> hapus() => _pref.remove(_kunci);
+  Future<void> hapus() => _pref.remove(kunci);
 }

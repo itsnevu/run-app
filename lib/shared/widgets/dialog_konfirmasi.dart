@@ -69,8 +69,9 @@ class DialogKonfirmasi extends StatelessWidget {
             const SizedBox(height: Jarak.xl),
             TombolRukun(
               label: labelLanjut,
-              varian:
-                  destruktif ? VarianTombol.destruktif : VarianTombol.primer,
+              varian: destruktif
+                  ? VarianTombol.destruktif
+                  : VarianTombol.primer,
               onTap: () => Navigator.of(context).pop(true),
             ),
             const SizedBox(height: Jarak.sm),
@@ -139,34 +140,41 @@ class _LembarIsianState extends State<LembarIsian> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: Bentuk.dekorasi(
           radius: Sudut.xxl,
           gradient: context.gradients.permukaanTinggi,
         ),
         padding: const EdgeInsets.fromLTRB(
-            Jarak.tepiLayar, Jarak.xxl, Jarak.tepiLayar, Jarak.xxl),
+          Jarak.tepiLayar,
+          Jarak.xxl,
+          Jarak.tepiLayar,
+          Jarak.xxl,
+        ),
         child: SafeArea(
           top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(widget.judul, style: RukunText.judul3),
-              const SizedBox(height: Jarak.lg),
-              KolomTeksRukun(
-                kendali: _kendali,
-                petunjuk: widget.petunjuk,
-                kapitalisasi: TextCapitalization.words,
-                aksi: TextInputAction.done,
-                fokusOtomatis: true,
-                onKirim: (_) => _simpan(),
-              ),
-              const SizedBox(height: Jarak.xl),
-              TombolRukun(label: widget.labelSimpan, onTap: _simpan),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(widget.judul, style: RukunText.judul3),
+                const SizedBox(height: Jarak.lg),
+                KolomTeksRukun(
+                  kendali: _kendali,
+                  petunjuk: widget.petunjuk,
+                  kapitalisasi: TextCapitalization.words,
+                  aksi: TextInputAction.done,
+                  fokusOtomatis: true,
+                  onKirim: (_) => _simpan(),
+                ),
+                const SizedBox(height: Jarak.xl),
+                TombolRukun(label: widget.labelSimpan, onTap: _simpan),
+              ],
+            ),
           ),
         ),
       ),
